@@ -1,0 +1,8 @@
+# Nodejs modules
+middleware/midi-to-udp/node_modules
+
+# Plataformio
+.pio
+.pioenvs
+.piolibdeps
+.vscode
