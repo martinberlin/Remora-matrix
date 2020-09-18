@@ -7,7 +7,7 @@ const midi = require('midi');
 const dgram = require('dgram');
 var udpclient = dgram.createSocket('udp4');
 
-var DEBUG = true;
+var DEBUG = false;
 var PORT = 49161;       // Default Orca UDP output port
 // Set up a new input.
 const input = new midi.Input();
@@ -39,10 +39,11 @@ input.on('message', (deltaTime, message) => {
     if (typeof message[1]!=='number') {
       return;
     }
-    noteChord  = message[1].toString(16);  // FF 0 01
+    noteChord  = message[1].toString(16).toUpperCase();  // FF 0 01
     
     if (typeof message[2]==='number') {
-    noteVelocity  = (message[2].toString(16).length==1) ?'0'+message[2].toString(16):message[2].toString(16);
+      ucVelocity = message[2].toString(16).toUpperCase();
+      noteVelocity  = (message[2].toString(16).length==1) ?'0'+ucVelocity:ucVelocity;
     }  
     let noteInfo = noteChord+noteStatus+noteVelocity;
     console.log(noteInfo);
@@ -65,6 +66,6 @@ function sendPerUdp(noteInfo) {
       throw err;
     }
     
-    console.log('Sent: ' + inBuffer.toString() + ' to ' + options.udp_ip +':'+ PORT);
+    if (DEBUG) console.log('Sent: ' + inBuffer.toString() + ' to ' + options.udp_ip +':'+ PORT);
   });
 }
