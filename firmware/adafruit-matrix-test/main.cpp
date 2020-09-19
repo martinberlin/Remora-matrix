@@ -8,16 +8,16 @@
 //#include "yellowsmiley24.h"
 //#include "bluesmiley24.h"
 #include "smileytongue24.h"
-#define PIN 19
 
-// Max is 255, 32 is a conservative value to not overload
-// a USB power supply (500mA) for 12x12 pixels.
-#define BRIGHTNESS 96
+// Note all this define's below will be shared between demos so is defined in central platformio.ini
 
 // Define matrix width and height.
 //#define MATRIX_WIDTH 50
 //#define MATRIX_HEIGHT 20
-Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT, PIN,
+//#define MATRIX_BRIGHTNESS 96 / Max is 255, 32 is a conservative value to not overload
+//#define MATRIX_DATA_PIN 19
+
+Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT, MATRIX_DATA_PIN,
   NEO_MATRIX_TOP     + NEO_MATRIX_LEFT +
   NEO_MATRIX_ROWS    + NEO_MATRIX_ZIGZAG,
   NEO_GRB            + NEO_KHZ800);
@@ -570,7 +570,7 @@ void setup() {
     Serial.begin(115200);
     matrix->begin();
     matrix->setTextWrap(false);
-    matrix->setBrightness(BRIGHTNESS);
+    matrix->setBrightness(MATRIX_BRIGHTNESS);
     // Test full bright of all LEDs. If brightness is too high
     // for your current limit (i.e. USB), decrease it.
     matrix->fillScreen(LED_WHITE_HIGH);
