@@ -5,6 +5,9 @@
 const yargs = require("yargs");
 const midi = require('midi');
 const dgram = require('dgram');
+
+// This should match the note status on:
+const noteStatusOn = 144;
 var udpclient = dgram.createSocket('udp4');
 
 var DEBUG = false;
@@ -26,7 +29,7 @@ let options = yargs
 
 console.log("Listening to: "+input.getPortName(options.port_id)+ ' and forwarding to '+options.udp_ip+':'+PORT);
 
-
+let logNotes = true;
 // Configure a callback.
 input.on('message', (deltaTime, message) => {
   
@@ -35,18 +38,24 @@ input.on('message', (deltaTime, message) => {
     // The line that solved the not being called issue:
     setImmediate(() => {})
     noteVelocity = '00';
-    noteStatus = (message[0]>=145) ? '1' : '0';
+    //console.log("STATUS:"+message[0]);
+    noteStatus = (message[0]>=noteStatusOn) ? '1' : '0';
     if (typeof message[1]!=='number') {
       return;
     }
-    noteChord  = message[1].toString(16).toUpperCase();  // FF 0 01
+
+    noteChord  = (message[1].toString(16).length==1) ?'0'+message[1].toString(16).toUpperCase():message[1].toString(16).toUpperCase();  // FF 0 01
     
     if (typeof message[2]==='number') {
       ucVelocity = message[2].toString(16).toUpperCase();
       noteVelocity  = (message[2].toString(16).length==1) ?'0'+ucVelocity:ucVelocity;
-    }  
+    }
     let noteInfo = noteChord+noteStatus+noteVelocity;
-    console.log(noteInfo);
+
+    if (logNotes) {
+      console.log(noteInfo);
+      logNotes = false;
+    }
 
     // When called inside the midi callback it simply does not work
     sendPerUdp(noteInfo);

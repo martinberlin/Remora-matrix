@@ -34,6 +34,9 @@ Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT,
 #define LED_BLUE_HIGH 		31
 
 TimerHandle_t wifiReconnectTimer;
+uint8_t offCount = 0;
+// Matrix pointers
+uint16_t yAxisCenter = MATRIX_HEIGHT/2;
 
 void connectToWifi() {
   Serial.println("Connecting to Wi-Fi...");
@@ -51,6 +54,11 @@ void print(String message, bool newline = true)
    }
 }
 
+uint8_t StrToHex(char str[])
+{
+  return (uint8_t) strtol(str, 0, 16);
+}
+
 void WiFiEvent(WiFiEvent_t event) {
     Serial.printf("[WiFi-event] event: %d\n", event);
     switch(event) {
@@ -63,27 +71,80 @@ void WiFiEvent(WiFiEvent_t event) {
         Serial.println(WiFi.localIP().toString()+":"+String(UDP_PORT));
 
     // Callback that gets fired every time an UDP Message arrives
-    udp.onPacket([](AsyncUDPPacket packet) {
-      String command;
     
+    udp.onPacket([](AsyncUDPPacket packet) {
+      
+      char note1 = packet.data()[0];
+      char note2 = packet.data()[1];
+      char noteArray[2] = {note1,note2};
+      uint8_t note = StrToHex(noteArray);
+
+      char status = packet.data()[2];
+      
+      uint8_t s = packet.data()[2];
+      char velocity1 = packet.data()[3];
+      char velocity2 = packet.data()[4];
+      char velArray[2] = {velocity1,velocity2};
+      uint8_t velocity = StrToHex(velArray);
+
+      uint8_t absNote = (note-53<1)?1:(note-53);
+      double cX = absNote;
+      double cRadius = velocity/7;
+
+      uint16_t color = LED_GREEN_LOW;
+      if (velocity>29 && velocity<40) {
+          color = LED_BLUE_LOW;
+      }
+      if (velocity>39 && velocity<50) {
+          color = LED_BLUE_MEDIUM;
+      }
+      if (velocity>49 && velocity<56) {
+          color = LED_BLUE_HIGH;
+      }
+      if (velocity>55 && velocity<58) {
+          color = LED_RED_LOW;
+      }
+      if (velocity>57 && velocity<63) {
+          color = LED_RED_MEDIUM;
+      }
+      if (velocity>63) {
+          color = LED_RED_HIGH;
+      }
+      
+      if(debugMode) {
+            //Serial.printf("Note HEX:%c%c st:%c S:%d vel:%c%c\n",note1,note2,status,s,velocity1,velocity2);
+            Serial.printf("S:%d N:%d V:%d cX:%.1f cR:%.1f col:%d\n",s, note, velocity,cX,cRadius,color);
+        }
+
+      if (s!=48) {
+         matrix->printf("%c%c",note1,note2);
+         matrix->fillCircle(cX, yAxisCenter, cRadius, color);
+         
+      } else {
+         //if (random(2)==1) matrix->clear();
+         offCount++;
+         if (offCount>3) {
+           matrix->clear();
+           offCount=0;
+         }
+      }
+      portDISABLE_INTERRUPTS();
+      matrix->show();
+      portENABLE_INTERRUPTS();
+
+      
+
+      // Avoiding to use ugly String's (Only for debugging what comes)     
+      /* String command;
       for ( int i = 0; i < packet.length(); i++ ) {
           command += (char)packet.data()[i];
       }
-      matrix->clear();
-      matrix->setCursor(1,6);
-      matrix->print(command);
-      matrix->show();
-      
-      
-      if(debugMode) {
-            Serial.write(packet.data(), packet.length());Serial.println();
-        }
-
+      Serial.write(packet.data(), packet.length());Serial.println();
+      */
     });
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
         Serial.println("WiFi lost connection");
-        // TODO: Ensure we don't start UDP while reconnecting to Wi-Fi (low prio)
 	      xTimerStart(wifiReconnectTimer, 0);
         break;
     }
@@ -93,8 +154,13 @@ void WiFiEvent(WiFiEvent_t event) {
 
 
 void setup() {
+    
     Serial.begin(115200);
+    Serial.printf("COLORS\ngreen_low:%d blue_low:%d blue_medium:%d blue_high:%d\n red_low:%d red_medium:%d red_high:%d\n",
+    LED_GREEN_LOW,LED_BLUE_LOW,LED_BLUE_MEDIUM,LED_BLUE_HIGH,LED_RED_LOW,LED_RED_MEDIUM,LED_RED_HIGH);
+
     connectToWifi();
+
     WiFi.onEvent(WiFiEvent);
 
     // Set up automatic reconnect timer
@@ -106,8 +172,14 @@ void setup() {
     matrix->setBrightness(MATRIX_BRIGHTNESS);
 
     matrix->setTextColor(LED_BLUE_LOW);
-    matrix->print("50x20");
+    matrix->printf("%d x %d ",MATRIX_WIDTH,MATRIX_HEIGHT);
+    matrix->setTextColor(LED_GREEN_LOW);
+    matrix->print("Green ");
+    matrix->setTextColor(LED_RED_LOW);
+    matrix->print("Red");
+    portDISABLE_INTERRUPTS();
     matrix->show();
+    portENABLE_INTERRUPTS();
     /* delay(4000);
     matrix->clear();
     matrix->show(); */
