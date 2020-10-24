@@ -10,7 +10,7 @@
 
 // Message transport protocol
 AsyncUDP udp;
-// Define your Matrix following Adafruit_NeoMatrix Guides
+// Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
 Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT, MATRIX_DATA_PIN,
   NEO_MATRIX_TOP     + NEO_MATRIX_LEFT +
   NEO_MATRIX_ROWS    + NEO_MATRIX_ZIGZAG,
@@ -25,7 +25,7 @@ Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT,
 #define LED_GREEN_MEDIUM 	(31 << 5)  
 #define LED_GREEN_HIGH 		(63 << 5)  
 #define LED_BLUE_VERYLOW	3
-#define LED_BLUE_LOW 		7
+#define LED_BLUE_LOW 	    7
 #define LED_BLUE_MEDIUM 	15
 #define LED_BLUE_HIGH 		31
 #define LED_ORANGE_VERYLOW	(LED_RED_VERYLOW + LED_GREEN_VERYLOW)
@@ -74,7 +74,6 @@ void WiFiEvent(WiFiEvent_t event) {
     switch(event) {
     case SYSTEM_EVENT_STA_GOT_IP:
         Serial.println("WiFi connected");
-        delay(500);
         matrix->print(WiFi.localIP().toString());
         matrixShow();
 
@@ -84,7 +83,6 @@ void WiFiEvent(WiFiEvent_t event) {
         Serial.println(WiFi.localIP().toString()+":"+String(UDP_PORT));
 
     // Callback that gets fired every time an UDP Message arrives
-    
     udp.onPacket([](AsyncUDPPacket packet) {
       
       char note1 = packet.data()[0];
@@ -92,9 +90,7 @@ void WiFiEvent(WiFiEvent_t event) {
       char noteArray[2] = {note1,note2};
       uint8_t note = StrToHex(noteArray);
 
-      char status = packet.data()[2];
-
-      uint8_t s = packet.data()[2];
+      uint8_t status = packet.data()[2];
       char velocity1 = packet.data()[3];
       char velocity2 = packet.data()[4];
       char velArray[2] = {velocity1,velocity2};
@@ -147,16 +143,18 @@ void WiFiEvent(WiFiEvent_t event) {
           
       }
       
-      #if defined(DEBUGMODE) && DEBUGMODE==1
-            //Serial.printf("Note HEX:%c%c st:%c S:%d vel:%c%c\n",note1,note2,status,s,velocity1,velocity2);
-            Serial.printf("S:%d N:%d V:%d cX:%.1f cR:%.1f col:%d\n",s, note, velocity,cX,cRadius,color);
-      #endif
-
-      if (s!=48) {
+      if (status != 48) { // status 0: 48 in ASCII table is '0'
          matrix->printf("%c%c",note1,note2);
          matrix->fillCircle(cX, yAxisCenter, cRadius, color);
+
+         #if defined(DEBUGMODE) && DEBUGMODE==1
+            //Serial.printf("Note HEX:%c%c st:%c S:%d vel:%c%c\n",note1,note2,status,s,velocity1,velocity2);
+            Serial.printf("N:%d V:%d cX:%.1f cR:%.1f col:%d\n", note, velocity,cX,cRadius,color);
+         #endif
          
-      } else {
+      } else { 
+        // status 1: Turn this note off
+
          //if (random(2)==1) matrix->clear();
          offCount++;
          if (offCount>3) {
@@ -170,9 +168,12 @@ void WiFiEvent(WiFiEvent_t event) {
 
     });
         break;
+
     case SYSTEM_EVENT_STA_DISCONNECTED:
         Serial.println("WiFi lost connection");
 	      xTimerStart(wifiReconnectTimer, 0);
+        matrix->print("No Wifi");
+        matrixShow();
         break;
     }
     
@@ -196,10 +197,10 @@ void setup() {
     matrix->begin();
     matrix->setTextWrap(true);
     matrix->setBrightness(MATRIX_BRIGHTNESS);
-
-    matrix->setTextColor(LED_BLUE_LOW);
-    matrix->printf("%dx%d",MATRIX_WIDTH,MATRIX_HEIGHT);
     matrix->setTextColor(LED_ORANGE_MEDIUM);
+    
+    //matrix->setTextColor(LED_BLUE_LOW);
+    //matrix->printf("%dx%d",MATRIX_WIDTH,MATRIX_HEIGHT);
     // Demo to check if colors are well mapped:
 /*  matrix->setTextColor(LED_GREEN_LOW);
     matrix->print("Green ");
