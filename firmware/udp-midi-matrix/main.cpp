@@ -1,7 +1,9 @@
 #include <SPI.h>                // Adafruit asks for this also we don't use SPI at all
 #include <Adafruit_GFX.h>
-#include <Adafruit_NeoMatrix.h>
-#include <Adafruit_NeoPixel.h>
+#include <FastLED_NeoMatrix.h>
+#include <FastLED.h>
+#include <LEDMatrix.h>
+
 #include "WiFi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
@@ -15,10 +17,20 @@ uint8_t velocity_division = 12;
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
-Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT, MATRIX_DATA_PIN,
-  NEO_MATRIX_TOP     + NEO_MATRIX_LEFT +
-  NEO_MATRIX_ROWS    + NEO_MATRIX_ZIGZAG,
-  NEO_GRB           + NEO_KHZ800);
+// cLEDMatrix defines 
+cLEDMatrix<-MATRIX_WIDTH, -10, HORIZONTAL_ZIGZAG_MATRIX,
+    1, 2, HORIZONTAL_BLOCKS> ledmatrix;
+// cLEDMatrix creates a FastLED array inside its object and we need to retrieve
+// a pointer to its first element to act as a regular FastLED array, necessary
+// for NeoMatrix and other operations that may work directly on the array like FadeAll.
+CRGB *leds = ledmatrix[0];
+
+FastLED_NeoMatrix *matrix = new FastLED_NeoMatrix(leds, MATRIX_WIDTH, 10,
+1, 2,
+  NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
+    NEO_MATRIX_ROWS + NEO_MATRIX_ZIGZAG +
+    NEO_TILE_TOP + NEO_TILE_LEFT +  NEO_TILE_PROGRESSIVE);
+    
 
 #define LED_RED_VERYLOW 	(3 <<  11)
 #define LED_RED_LOW 		(7 <<  11)
@@ -67,12 +79,6 @@ void connectToWifi() {
 
 uint8_t StrToHex(char str[]) {
   return (uint8_t) strtol(str, 0, 16);
-}
-
-void matrixShow() {
-  portDISABLE_INTERRUPTS();
-  matrix->show();
-  portENABLE_INTERRUPTS();
 }
 
 
@@ -142,7 +148,7 @@ void WiFiEvent(WiFiEvent_t event) {
     case SYSTEM_EVENT_STA_GOT_IP:
         Serial.println("WiFi connected");
         matrix->print(WiFi.localIP().toString());
-        matrixShow();
+        matrix->show();
 
     // Start UDP
     if(udp.listen(UDP_PORT)) {
@@ -154,7 +160,7 @@ void WiFiEvent(WiFiEvent_t event) {
     udp.onPacket([](AsyncUDPPacket packet) {
       if (firstNote) {
         matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
-        matrixShow();
+        matrix->show();
       }
       char note1 = packet.data()[0];
       char note2 = packet.data()[1];
@@ -197,7 +203,7 @@ void WiFiEvent(WiFiEvent_t event) {
         }
         //printf("E%d\n",vIdx);
       }
-      matrixShow();
+      matrix->show();
 
     });
         break;
@@ -206,7 +212,7 @@ void WiFiEvent(WiFiEvent_t event) {
         Serial.println("WiFi lost connection");
 	      xTimerStart(wifiReconnectTimer, 0);
         matrix->print("No Wifi");
-        matrixShow();
+        matrix->show();
         break;
     }
     
@@ -216,6 +222,9 @@ void WiFiEvent(WiFiEvent_t event) {
 void setup() {
     
     Serial.begin(115200);
+    uint16_t numMatrix = MATRIX_WIDTH*MATRIX_HEIGHT;
+    FastLED.addLeds<NEOPIXEL,MATRIX_DATA_PIN>(leds, numMatrix).setCorrection(TypicalLEDStrip);
+
     Serial.printf("COLORS\ngreen_low:%d blue_low:%d blue_medium:%d blue_high:%d\n red_low:%d red_medium:%d red_high:%d\n",
     LED_GREEN_LOW,LED_BLUE_LOW,LED_BLUE_MEDIUM,LED_BLUE_HIGH,LED_RED_LOW,LED_RED_MEDIUM,LED_RED_HIGH);
 
@@ -232,14 +241,7 @@ void setup() {
     matrix->setBrightness(MATRIX_BRIGHTNESS);
     matrix->setTextColor(LED_ORANGE_MEDIUM);
 
-    //matrix->setTextColor(LED_BLUE_LOW);
-    //matrix->printf("%dx%d",MATRIX_WIDTH,MATRIX_HEIGHT);
-    // Demo to check if colors are well mapped:
-/*  matrix->setTextColor(LED_GREEN_LOW);
-    matrix->print("Green ");
-    matrix->setTextColor(LED_RED_LOW);
-    matrix->print("Red"); */
-    matrixShow();
+    matrix->show();
 }
 
 void loop() {
