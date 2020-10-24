@@ -11,6 +11,26 @@ This reduces the hardware gear to use since you don't need an special [Midi shie
                         Both PC and ESP32 are in same WiFi network
 ```
 
+### Running 
+
+After successful installation using npm install, run first:
+
+```
+nodejs midi.js
+
+  -p, --port_id  ID: Port name
+                 0: Midi Through:Midi Through Port-0 14:0
+                 1: USB MIDI Interface:USB MIDI Interface MIDI 1 24:0
+                                                             [number] [required]
+  -u, --udp_ip                                               [string] [required]
+```
+
+This will list the USB midi porst. Just select the one that works for you and then tell the midi script what is the UDP IP where the notes will be redirected:
+
+```
+nodejs midi.js -p 1 -u 192.168.0.11
+```
+
 ### Instructions to install 
 
 **Running:**
