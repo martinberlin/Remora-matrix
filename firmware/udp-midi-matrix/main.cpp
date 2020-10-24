@@ -8,8 +8,6 @@
 #include "AsyncUDP.h"
 // Note all this define's are shared between demos so is defined in central platformio.ini
 
-#define debugMode true
-
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guides
@@ -22,16 +20,33 @@ Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT,
 #define LED_RED_LOW 		(7 <<  11)
 #define LED_RED_MEDIUM 		(15 << 11)
 #define LED_RED_HIGH 		(31 << 11)
-
 #define LED_GREEN_VERYLOW	(1 <<  5)   
 #define LED_GREEN_LOW 		(15 << 5)  
 #define LED_GREEN_MEDIUM 	(31 << 5)  
 #define LED_GREEN_HIGH 		(63 << 5)  
-
 #define LED_BLUE_VERYLOW	3
 #define LED_BLUE_LOW 		7
 #define LED_BLUE_MEDIUM 	15
 #define LED_BLUE_HIGH 		31
+#define LED_ORANGE_VERYLOW	(LED_RED_VERYLOW + LED_GREEN_VERYLOW)
+#define LED_ORANGE_LOW		(LED_RED_LOW     + LED_GREEN_LOW)
+#define LED_ORANGE_MEDIUM	(LED_RED_MEDIUM  + LED_GREEN_MEDIUM)
+#define LED_ORANGE_HIGH		(LED_RED_HIGH    + LED_GREEN_HIGH)
+
+#define LED_PURPLE_VERYLOW	(LED_RED_VERYLOW + LED_BLUE_VERYLOW)
+#define LED_PURPLE_LOW		(LED_RED_LOW     + LED_BLUE_LOW)
+#define LED_PURPLE_MEDIUM	(LED_RED_MEDIUM  + LED_BLUE_MEDIUM)
+#define LED_PURPLE_HIGH		(LED_RED_HIGH    + LED_BLUE_HIGH)
+
+#define LED_CYAN_VERYLOW	(LED_GREEN_VERYLOW + LED_BLUE_VERYLOW)
+#define LED_CYAN_LOW		(LED_GREEN_LOW     + LED_BLUE_LOW)
+#define LED_CYAN_MEDIUM		(LED_GREEN_MEDIUM  + LED_BLUE_MEDIUM)
+#define LED_CYAN_HIGH		(LED_GREEN_HIGH    + LED_BLUE_HIGH)
+
+#define LED_WHITE_VERYLOW	(LED_RED_VERYLOW + LED_GREEN_VERYLOW + LED_BLUE_VERYLOW)
+#define LED_WHITE_LOW		(LED_RED_LOW     + LED_GREEN_LOW     + LED_BLUE_LOW)
+#define LED_WHITE_MEDIUM	(LED_RED_MEDIUM  + LED_GREEN_MEDIUM  + LED_BLUE_MEDIUM)
+#define LED_WHITE_HIGH		(LED_RED_HIGH    + LED_GREEN_HIGH    + LED_BLUE_HIGH)
 
 TimerHandle_t wifiReconnectTimer;
 uint8_t offCount = 0;
@@ -43,31 +58,29 @@ void connectToWifi() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 }
 
-void print(String message, bool newline = true)
-{
-  if (debugMode) {
-    if (newline) {
-      Serial.println(message);
-    } else {
-      Serial.print(message);
-    }
-   }
-}
-
 uint8_t StrToHex(char str[])
 {
   return (uint8_t) strtol(str, 0, 16);
+}
+
+void matrixShow() {
+  portDISABLE_INTERRUPTS();
+  matrix->show();
+  portENABLE_INTERRUPTS();
 }
 
 void WiFiEvent(WiFiEvent_t event) {
     Serial.printf("[WiFi-event] event: %d\n", event);
     switch(event) {
     case SYSTEM_EVENT_STA_GOT_IP:
-        print("WiFi connected");
+        Serial.println("WiFi connected");
+        delay(500);
+        matrix->print(WiFi.localIP().toString());
+        matrixShow();
 
         // Start UDP
     if(udp.listen(UDP_PORT)) {
-        print("UDP Listening on IP: ");
+        Serial.println("UDP Listening on IP: ");
         Serial.println(WiFi.localIP().toString()+":"+String(UDP_PORT));
 
     // Callback that gets fired every time an UDP Message arrives
@@ -80,16 +93,18 @@ void WiFiEvent(WiFiEvent_t event) {
       uint8_t note = StrToHex(noteArray);
 
       char status = packet.data()[2];
-      
+
       uint8_t s = packet.data()[2];
       char velocity1 = packet.data()[3];
       char velocity2 = packet.data()[4];
       char velArray[2] = {velocity1,velocity2};
       uint8_t velocity = StrToHex(velArray);
 
-      uint8_t absNote = (note-53<1)?1:(note-53);
+      uint8_t absNote = (note-53<1)?1:(note-53)*2;
       double cX = absNote;
       double cRadius = velocity/7;
+      esp_random();
+      uint8_t randomColor = random(5);
 
       uint16_t color = LED_GREEN_LOW;
       if (velocity>29 && velocity<40) {
@@ -108,13 +123,34 @@ void WiFiEvent(WiFiEvent_t event) {
           color = LED_RED_MEDIUM;
       }
       if (velocity>63) {
+        switch (randomColor)
+        {
+        case 1:
           color = LED_RED_HIGH;
+          break;
+        case 2:
+          color = LED_GREEN_HIGH;
+          break;
+        case 3:
+          color = LED_BLUE_HIGH;
+          break;
+        case 4:
+          color = LED_PURPLE_HIGH;
+          break;
+        case 5:
+          color = LED_CYAN_HIGH;
+          break;
+        default:
+          color = LED_ORANGE_HIGH;
+          break;
+        }
+          
       }
       
-      if(debugMode) {
+      #if defined(DEBUGMODE) && DEBUGMODE==1
             //Serial.printf("Note HEX:%c%c st:%c S:%d vel:%c%c\n",note1,note2,status,s,velocity1,velocity2);
             Serial.printf("S:%d N:%d V:%d cX:%.1f cR:%.1f col:%d\n",s, note, velocity,cX,cRadius,color);
-        }
+      #endif
 
       if (s!=48) {
          matrix->printf("%c%c",note1,note2);
@@ -132,15 +168,6 @@ void WiFiEvent(WiFiEvent_t event) {
       matrix->show();
       portENABLE_INTERRUPTS();
 
-      
-
-      // Avoiding to use ugly String's (Only for debugging what comes)     
-      /* String command;
-      for ( int i = 0; i < packet.length(); i++ ) {
-          command += (char)packet.data()[i];
-      }
-      Serial.write(packet.data(), packet.length());Serial.println();
-      */
     });
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
@@ -151,7 +178,6 @@ void WiFiEvent(WiFiEvent_t event) {
     
     }
 }
-
 
 void setup() {
     
@@ -172,17 +198,14 @@ void setup() {
     matrix->setBrightness(MATRIX_BRIGHTNESS);
 
     matrix->setTextColor(LED_BLUE_LOW);
-    matrix->printf("%d x %d ",MATRIX_WIDTH,MATRIX_HEIGHT);
-    matrix->setTextColor(LED_GREEN_LOW);
+    matrix->printf("%dx%d",MATRIX_WIDTH,MATRIX_HEIGHT);
+    matrix->setTextColor(LED_ORANGE_MEDIUM);
+    // Demo to check if colors are well mapped:
+/*  matrix->setTextColor(LED_GREEN_LOW);
     matrix->print("Green ");
     matrix->setTextColor(LED_RED_LOW);
-    matrix->print("Red");
-    portDISABLE_INTERRUPTS();
-    matrix->show();
-    portENABLE_INTERRUPTS();
-    /* delay(4000);
-    matrix->clear();
-    matrix->show(); */
+    matrix->print("Red"); */
+    matrixShow();
 }
 
 void loop() {
