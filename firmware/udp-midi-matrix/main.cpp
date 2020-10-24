@@ -52,7 +52,7 @@ TimerHandle_t wifiReconnectTimer;
 uint8_t offCount = 0;
 // Matrix pointers
 // cX, yAxisCenter, cRadius : Test to save this globally
-double cX = 0;
+double absNote = 0;
 double cRadius = 0;
 uint16_t yAxisCenter = MATRIX_HEIGHT/2;
 bool firstNote = true;
@@ -73,6 +73,51 @@ void matrixShow() {
   portENABLE_INTERRUPTS();
 }
 
+
+uint16_t colorSample1(uint8_t velocity) {
+  uint16_t color = LED_GREEN_LOW;
+  esp_random();
+  uint8_t randomColor = random(5);
+  if (velocity>29 && velocity<40) {
+      color = LED_BLUE_LOW;
+  }
+  if (velocity>39 && velocity<50) {
+      color = LED_BLUE_MEDIUM;
+  }
+  if (velocity>49 && velocity<56) {
+      color = LED_BLUE_HIGH;
+  }
+  if (velocity>55 && velocity<58) {
+      color = LED_RED_LOW;
+  }
+  if (velocity>57 && velocity<63) {
+      color = LED_RED_MEDIUM;
+  }
+  if (velocity>63) {
+    switch (randomColor)
+    {
+    case 1:
+      color = LED_RED_HIGH;
+      break;
+    case 2:
+      color = LED_GREEN_HIGH;
+      break;
+    case 3:
+      color = LED_BLUE_HIGH;
+      break;
+    case 4:
+      color = LED_PURPLE_HIGH;
+      break;
+    case 5:
+      color = LED_CYAN_HIGH;
+      break;
+    default:
+      color = LED_ORANGE_HIGH;
+      break;
+    }
+  }
+  return color;
+}
 
 void WiFiEvent(WiFiEvent_t event) {
     Serial.printf("[WiFi-event] event: %d\n", event);
@@ -103,68 +148,25 @@ void WiFiEvent(WiFiEvent_t event) {
       char velocity1 = packet.data()[3];
       char velocity2 = packet.data()[4];
       char velArray[2] = {velocity1,velocity2};
-      uint8_t velocity = StrToHex(velArray);
-
-      uint8_t absNote = (note-53<1)?1:(note-53)*2;
-      cX = absNote;
-      cRadius = velocity/7;
-      esp_random();
-      uint8_t randomColor = random(5);
-
-      uint16_t color = LED_GREEN_LOW;
-      if (velocity>29 && velocity<40) {
-          color = LED_BLUE_LOW;
-      }
-      if (velocity>39 && velocity<50) {
-          color = LED_BLUE_MEDIUM;
-      }
-      if (velocity>49 && velocity<56) {
-          color = LED_BLUE_HIGH;
-      }
-      if (velocity>55 && velocity<58) {
-          color = LED_RED_LOW;
-      }
-      if (velocity>57 && velocity<63) {
-          color = LED_RED_MEDIUM;
-      }
-      if (velocity>63) {
-        switch (randomColor)
-        {
-        case 1:
-          color = LED_RED_HIGH;
-          break;
-        case 2:
-          color = LED_GREEN_HIGH;
-          break;
-        case 3:
-          color = LED_BLUE_HIGH;
-          break;
-        case 4:
-          color = LED_PURPLE_HIGH;
-          break;
-        case 5:
-          color = LED_CYAN_HIGH;
-          break;
-        default:
-          color = LED_ORANGE_HIGH;
-          break;
-        }
-          
-      }
+      uint8_t velocity = StrToHex(velArray);          
       
       if (status != 48) { // status 0: 48 in ASCII table is '0'
+         absNote = (note-53<1)?1:(note-53)*2;
+         cRadius = velocity/9;
          matrix->printf("%c%c",note1,note2);
-         matrix->fillCircle(cX, yAxisCenter, cRadius, color);
+         matrix->fillCircle(absNote, yAxisCenter, cRadius, colorSample1(velocity));
+         
 
          #if defined(DEBUGMODE) && DEBUGMODE==1
+            Serial.printf("note:%d \n",note);
             //Serial.printf("Note HEX:%c%c st:%c S:%d vel:%c%c\n",note1,note2,status,s,velocity1,velocity2);
             Serial.printf("N:%d V:%d cX:%.1f cR:%.1f col:%d\n", note, velocity,cX,cRadius,color);
          #endif
          
       } else { 
         // status 1: Turn this note off
-        Serial.printf("cX:%d R:%lf\n",cX,cRadius);
-        matrix->fillCircle(cX, yAxisCenter, cRadius, matrix->Color(0,0,0));
+        //Serial.printf("cX:%d R:%lf\n",cX,cRadius);
+        matrix->fillCircle(absNote, yAxisCenter, cRadius, matrix->Color(0,0,0));
       }
       matrixShow();
 
