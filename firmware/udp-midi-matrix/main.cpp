@@ -6,7 +6,11 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
 #include "AsyncUDP.h"
+#include <vector>
 // Note all this define's are shared between demos so is defined in central platformio.ini
+
+// Create a vector containing incoming Notes
+std::vector<uint8_t> vNote;
 
 // Message transport protocol
 AsyncUDP udp;
@@ -52,7 +56,6 @@ TimerHandle_t wifiReconnectTimer;
 uint8_t offCount = 0;
 // Matrix pointers
 // cX, yAxisCenter, cRadius : Test to save this globally
-double absNote = 0;
 double cRadius = 0;
 uint16_t yAxisCenter = MATRIX_HEIGHT/2;
 bool firstNote = true;
@@ -62,8 +65,7 @@ void connectToWifi() {
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 }
 
-uint8_t StrToHex(char str[])
-{
+uint8_t StrToHex(char str[]) {
   return (uint8_t) strtol(str, 0, 16);
 }
 
@@ -74,7 +76,7 @@ void matrixShow() {
 }
 
 
-uint16_t colorSample1(uint8_t velocity) {
+uint16_t colorSampler1(uint8_t velocity) {
   uint16_t color = LED_GREEN_LOW;
   esp_random();
   uint8_t randomColor = random(5);
@@ -119,6 +121,21 @@ uint16_t colorSample1(uint8_t velocity) {
   return color;
 }
 
+// Simple shape selector
+void shapeDrawing1(uint8_t note, double radius, uint8_t velocity, uint16_t color) {
+  double absNote = (note-53<1)?1:(note-53)*2;
+  // If the note is pair then
+  if (note%2 == 0) {
+     matrix->fillCircle(absNote, yAxisCenter, radius, color);
+     return;
+  }
+  if (note%3 == 0) {
+     matrix->fillTriangle(absNote-(velocity/10), yAxisCenter, absNote, yAxisCenter-radius,absNote+radius, yAxisCenter, color);
+     return;
+  }
+  matrix->fillRect(absNote, yAxisCenter, radius, radius, color);
+}
+
 void WiFiEvent(WiFiEvent_t event) {
     Serial.printf("[WiFi-event] event: %d\n", event);
     switch(event) {
@@ -127,7 +144,7 @@ void WiFiEvent(WiFiEvent_t event) {
         matrix->print(WiFi.localIP().toString());
         matrixShow();
 
-        // Start UDP
+    // Start UDP
     if(udp.listen(UDP_PORT)) {
         Serial.println("UDP Listening on IP: ");
         Serial.println(WiFi.localIP().toString()+":"+String(UDP_PORT));
@@ -136,8 +153,8 @@ void WiFiEvent(WiFiEvent_t event) {
     // Callback that gets fired every time an UDP Message arrives
     udp.onPacket([](AsyncUDPPacket packet) {
       if (firstNote) {
-        matrix->fillScreen(matrix->Color(0,0,0));
-        firstNote = false;
+        matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
+        matrixShow();
       }
       char note1 = packet.data()[0];
       char note2 = packet.data()[1];
@@ -151,11 +168,11 @@ void WiFiEvent(WiFiEvent_t event) {
       uint8_t velocity = StrToHex(velArray);          
       
       if (status != 48) { // status 0: 48 in ASCII table is '0'
-         absNote = (note-53<1)?1:(note-53)*2;
-         cRadius = velocity/9;
-         matrix->printf("%c%c",note1,note2);
-         matrix->fillCircle(absNote, yAxisCenter, cRadius, colorSample1(velocity));
-         
+        // Add the note to the vector
+        vNote.push_back(note);
+        cRadius = velocity/9;
+        matrix->printf("%c%c",note1,note2);
+        shapeDrawing1(note, cRadius, velocity, colorSampler1(velocity));
 
          #if defined(DEBUGMODE) && DEBUGMODE==1
             Serial.printf("note:%d \n",note);
@@ -164,9 +181,21 @@ void WiFiEvent(WiFiEvent_t event) {
          #endif
          
       } else { 
-        // status 1: Turn this note off
-        //Serial.printf("cX:%d R:%lf\n",cX,cRadius);
-        matrix->fillCircle(absNote, yAxisCenter, cRadius, matrix->Color(0,0,0));
+        // Iterate and delete release notes from Vector
+        uint8_t vIdx = 0;
+        for (auto n:vNote) {
+          //if (vIdx==0) printf("-\n");
+          //printf("%d\n",n);
+          if (note == n) {
+            vNote.erase(vNote.begin()+vIdx);
+            
+            // status 1: Turn this note off drawing same shape in Black
+            // Missing to store here the other elemements of the note like cRadius
+            shapeDrawing1(note, cRadius, velocity, matrix->Color(0,0,0));
+          }
+          ++vIdx;
+        }
+        //printf("E%d\n",vIdx);
       }
       matrixShow();
 
