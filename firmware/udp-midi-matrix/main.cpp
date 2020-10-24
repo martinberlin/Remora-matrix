@@ -51,7 +51,11 @@ Adafruit_NeoMatrix *matrix = new Adafruit_NeoMatrix(MATRIX_WIDTH, MATRIX_HEIGHT,
 TimerHandle_t wifiReconnectTimer;
 uint8_t offCount = 0;
 // Matrix pointers
+// cX, yAxisCenter, cRadius : Test to save this globally
+double cX = 0;
+double cRadius = 0;
 uint16_t yAxisCenter = MATRIX_HEIGHT/2;
+bool firstNote = true;
 
 void connectToWifi() {
   Serial.println("Connecting to Wi-Fi...");
@@ -69,6 +73,7 @@ void matrixShow() {
   portENABLE_INTERRUPTS();
 }
 
+
 void WiFiEvent(WiFiEvent_t event) {
     Serial.printf("[WiFi-event] event: %d\n", event);
     switch(event) {
@@ -82,9 +87,13 @@ void WiFiEvent(WiFiEvent_t event) {
         Serial.println("UDP Listening on IP: ");
         Serial.println(WiFi.localIP().toString()+":"+String(UDP_PORT));
 
+    
     // Callback that gets fired every time an UDP Message arrives
     udp.onPacket([](AsyncUDPPacket packet) {
-      
+      if (firstNote) {
+        matrix->fillScreen(matrix->Color(0,0,0));
+        firstNote = false;
+      }
       char note1 = packet.data()[0];
       char note2 = packet.data()[1];
       char noteArray[2] = {note1,note2};
@@ -97,8 +106,8 @@ void WiFiEvent(WiFiEvent_t event) {
       uint8_t velocity = StrToHex(velArray);
 
       uint8_t absNote = (note-53<1)?1:(note-53)*2;
-      double cX = absNote;
-      double cRadius = velocity/7;
+      cX = absNote;
+      cRadius = velocity/7;
       esp_random();
       uint8_t randomColor = random(5);
 
@@ -154,17 +163,10 @@ void WiFiEvent(WiFiEvent_t event) {
          
       } else { 
         // status 1: Turn this note off
-
-         //if (random(2)==1) matrix->clear();
-         offCount++;
-         if (offCount>3) {
-           matrix->clear();
-           offCount=0;
-         }
+        Serial.printf("cX:%d R:%lf\n",cX,cRadius);
+        matrix->fillCircle(cX, yAxisCenter, cRadius, matrix->Color(0,0,0));
       }
-      portDISABLE_INTERRUPTS();
-      matrix->show();
-      portENABLE_INTERRUPTS();
+      matrixShow();
 
     });
         break;
@@ -198,7 +200,7 @@ void setup() {
     matrix->setTextWrap(true);
     matrix->setBrightness(MATRIX_BRIGHTNESS);
     matrix->setTextColor(LED_ORANGE_MEDIUM);
-    
+
     //matrix->setTextColor(LED_BLUE_LOW);
     //matrix->printf("%dx%d",MATRIX_WIDTH,MATRIX_HEIGHT);
     // Demo to check if colors are well mapped:
