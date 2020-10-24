@@ -1,4 +1,5 @@
 #include <SPI.h>                // Adafruit asks for this also we don't use SPI at all
+// Super proud of amazing Marc: https://github.com/marcmerlin All credits for this go to him!
 #include <Adafruit_GFX.h>
 #include <FastLED_NeoMatrix.h>
 #include <FastLED.h>
@@ -13,7 +14,7 @@
 
 // Create a vector containing incoming Notes
 std::vector<uint8_t> vNote;
-uint8_t velocity_division = 12;
+uint8_t velocity_division = 15;
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
@@ -25,9 +26,11 @@ cLEDMatrix<-MATRIX_WIDTH, -10, HORIZONTAL_ZIGZAG_MATRIX,
 // for NeoMatrix and other operations that may work directly on the array like FadeAll.
 CRGB *leds = ledmatrix[0];
 
+// Check here additionally how to define this matrix:
+// https://github.com/marcmerlin/FastLED_NeoMatrix
 FastLED_NeoMatrix *matrix = new FastLED_NeoMatrix(leds, MATRIX_WIDTH, 10,
 1, 2,
-  NEO_MATRIX_TOP     + NEO_MATRIX_RIGHT +
+  NEO_MATRIX_TOP + NEO_MATRIX_LEFT +
     NEO_MATRIX_ROWS + NEO_MATRIX_ZIGZAG +
     NEO_TILE_TOP + NEO_TILE_LEFT +  NEO_TILE_PROGRESSIVE);
     
