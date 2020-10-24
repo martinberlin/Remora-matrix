@@ -11,7 +11,7 @@
 
 // Create a vector containing incoming Notes
 std::vector<uint8_t> vNote;
-
+uint8_t velocity_division = 12;
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
@@ -130,7 +130,7 @@ void shapeDrawing1(uint8_t note, double radius, uint8_t velocity, uint16_t color
      return;
   }
   if (note%3 == 0) {
-     matrix->fillTriangle(absNote-(velocity/10), yAxisCenter, absNote, yAxisCenter-radius,absNote+radius, yAxisCenter, color);
+     matrix->fillTriangle(absNote-(velocity/velocity_division), yAxisCenter, absNote, yAxisCenter-radius,absNote+radius, yAxisCenter, color);
      return;
   }
   matrix->fillRect(absNote, yAxisCenter, radius, radius, color);
@@ -170,8 +170,7 @@ void WiFiEvent(WiFiEvent_t event) {
       if (status != 48) { // status 0: 48 in ASCII table is '0'
         // Add the note to the vector
         vNote.push_back(note);
-        cRadius = velocity/9;
-        matrix->printf("%c%c",note1,note2);
+        cRadius = velocity/velocity_division;
         shapeDrawing1(note, cRadius, velocity, colorSampler1(velocity));
 
          #if defined(DEBUGMODE) && DEBUGMODE==1
@@ -187,7 +186,8 @@ void WiFiEvent(WiFiEvent_t event) {
           //if (vIdx==0) printf("-\n");
           //printf("%d\n",n);
           if (note == n) {
-            vNote.erase(vNote.begin()+vIdx);
+            // Hangs all if using +vIdx:
+            vNote.erase(vNote.begin());
             
             // status 1: Turn this note off drawing same shape in Black
             // Missing to store here the other elemements of the note like cRadius
