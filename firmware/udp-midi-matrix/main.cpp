@@ -14,7 +14,7 @@
 
 // Create a vector containing incoming Notes
 std::vector<uint8_t> vNote;
-uint8_t velocity_division = 15;
+uint8_t velocity_division = 13;
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
@@ -180,6 +180,7 @@ void WiFiEvent(WiFiEvent_t event) {
         // Add the note to the vector
         vNote.push_back(note);
         cRadius = velocity/velocity_division;
+        if (cRadius<2) cRadius=2;
         shapeDrawing1(note, cRadius, velocity, colorSampler1(velocity));
 
          #if defined(DEBUGMODE) && DEBUGMODE==1
