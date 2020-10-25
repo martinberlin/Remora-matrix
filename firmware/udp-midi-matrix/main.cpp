@@ -180,6 +180,13 @@ void WiFiEvent(WiFiEvent_t event) {
       if (status != 48) { // status 0: 48 in ASCII table is '0'
         // Add the note to the vector
         vNote.push_back(note);
+        // Crude test to use the pan Potentiometer to regulate shape size
+        if (note==72 && velocity<21) {
+          velocity_division = velocity;
+          printf("divisor:%d\n",velocity_division);
+          matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
+        }
+
         cRadius = velocity/velocity_division;
         if (cRadius<2) cRadius=2;
         shapeDrawing1(note, cRadius, velocity, colorSampler1(velocity));
