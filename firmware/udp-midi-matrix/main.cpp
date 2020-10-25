@@ -164,6 +164,7 @@ void WiFiEvent(WiFiEvent_t event) {
       if (firstNote) {
         matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
         matrix->show();
+        firstNote = false;
       }
       char note1 = packet.data()[0];
       char note2 = packet.data()[1];
@@ -190,22 +191,20 @@ void WiFiEvent(WiFiEvent_t event) {
          #endif
          
       } else { 
-        // Iterate and delete release notes from Vector
-        uint8_t vIdx = 0;
-        for (auto n:vNote) {
-          //if (vIdx==0) printf("-\n");
-          //printf("%d\n",n);
-          if (note == n) {
-            // Hangs all if using +vIdx:
-            vNote.erase(vNote.begin());
-            
+        // Iterate and delete released notes from Vector
+
+        std::vector<uint8_t>::iterator it = vNote.begin();
+        for ( ; it != vNote.end(); ) {
+          if (*it==note) {
+            it = vNote.erase(it);
+            //printf("delNote:%d ",note);
             // status 1: Turn this note off drawing same shape in Black
             // Missing to store here the other elemements of the note like cRadius
             shapeDrawing1(note, cRadius, velocity, matrix->Color(0,0,0));
+          } else {
+            ++it;
           }
-          ++vIdx;
         }
-        //printf("E%d\n",vIdx);
       }
       matrix->show();
 
