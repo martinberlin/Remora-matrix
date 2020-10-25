@@ -29,9 +29,18 @@ So a C pressed lightly will make a small circle, a D pressed strong will make a 
 
 ## Demos organization in this repository
 
-Please make sure to delete Adafruit_GrayOLED.* from .pio/libdeps Adadruit GFX library because it gives an error. There is for sure a flag or something to exclude this library since we don't use the Gray Oled or anything similar here. Adafruit GFX is awesome and I love how it works, except this kind of little nifty things, that should be in separate libraries.
-Since this will be a code repository with more than one example we will use the src_dir parameter to choose what to compile.
-Just edit platformio.ini and uncomment only one of the **src_dir** folders to select what example to run.
+Please make sure to edit platformio.ini and uncomment only one of the **src_dir** folders to select what example to run.
+For example if you want to run the UDP to MIDI firmware just uncomment this line:
+
+```
+#Uncomment only one of the folders to select what example to run:
+#src_dir = firmware/adafruit-matrix-test
+src_dir = firmware/udp-midi-matrix
+```
+Then compiling will just pick this directory and flash it to your ESP32.
+
+Requirements are in **platformio.ini** file. Check it out and adapt it to your board and needs.
+This works super fast thanks of the work of amazing Marc Merlin's fork for [FastLED_NeoMatrix](https://github.com/marcmerlin/FastLED_NeoMatrix) that is what sends the data to your addressable LEDs data PIN.
 
 
 ## Companion applications
