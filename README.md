@@ -4,9 +4,25 @@
 
 Remora listens to UDP short commands or MIDI to trigger LED Matrix Animations. Receives ; commands from [ORCΛ](https://github.com/hundredrabbits/Orca)
 
-## Launching matrix effects
+## Launching matrix effects using MIDI as a trigger
 
 Our previous [Firmware Remora](https://github.com/martinberlin/Remora) was intended to receive short commands from ORCΛ and make very simple Neopixels  animations on addressable LEDs stripes (WS2812B like)
+
+To use this for the moment we convert incoming MIDI input to UDP using a **nodejs middleware**. To start it just go to the directory:
+
+    cd middleware/midi-to-udp
+    nodejs midi.js
+
+There you will see what ports you have as incoming MIDI. You need a midi input source either an instrument or something you send from the computer itself. In my case I use a combination of Timidity and Rosegarden (Kind of Cakewalk for Linux). Once you see the port listed, just add there the -p (port) and -u (udp) IP address. UDP port is fixed to 49161 both in the middleware and also on the ESP32 Firmware. As an example:
+
+    $ nodejs midi.js -p 3 -u 192.168.12.109
+    Listening to: rosegarden:out 1 - General MIDI Device 130:3 and forwarding to 192.168.12.109:49161
+
+This will redirect the MIDI notes to UDP. And the ESP32 will receive this UDP short messages and draw things in your LED Matrix.
+On next updates we will also a second way, that is receiving directly the MIDI signal in the ESP32, that will require an Sparkfun Midi-Arduino module. The design to connect the ESP32 is still on the works and it will take some weeks more to see the light.
+But if that works as expected, then there is no more middleware needed, and no more WiFi latence delay. So this should be actually the real thing if you want to be independant of WiFi. 
+
+![Sparkfun MIDI](./assets/midi-arduino.jpg)
 
 ## Ideas to develop
 

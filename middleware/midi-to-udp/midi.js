@@ -75,6 +75,6 @@ function sendPerUdp(noteInfo) {
       throw err;
     }
     
-    if (DEBUG) console.log('Sent: ' + inBuffer.toString() + ' to ' + options.udp_ip +':'+ PORT);
+    if (DEBUG) console.log(inBuffer.toString());
   });
 }

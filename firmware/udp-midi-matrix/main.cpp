@@ -14,7 +14,10 @@
 
 // Create a vector containing incoming Notes
 std::vector<uint8_t> vNote;
-uint8_t velocity_division = 13;
+// Enabling this converts Note 71 that is electribe's potentiometer into the velocity divisor (Makes smaller/bigger shapes)
+#define POTENCIOMETER_DIVISOR_KORG 1
+// If the figures are too small just reduce this. If too big, just increase. SIZE / velocity_division
+uint8_t velocity_division = 18;
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
@@ -89,19 +92,25 @@ uint16_t colorSampler1(uint8_t velocity) {
   uint16_t color = LED_GREEN_LOW;
   esp_random();
   uint8_t randomColor = random(5);
-  if (velocity>29 && velocity<40) {
+  if (velocity>29 && velocity<36) {
       color = LED_BLUE_LOW;
   }
-  if (velocity>39 && velocity<50) {
+  if (velocity>35 && velocity<41) {
       color = LED_BLUE_MEDIUM;
   }
-  if (velocity>49 && velocity<56) {
+  if (velocity>40 && velocity<46) {
       color = LED_BLUE_HIGH;
   }
-  if (velocity>55 && velocity<58) {
-      color = LED_RED_LOW;
+  if (velocity>45 && velocity<51) {
+      color = LED_GREEN_LOW;
   }
-  if (velocity>57 && velocity<63) {
+  if (velocity>50 && velocity<56) {
+      color = LED_GREEN_MEDIUM;
+  }
+  if (velocity>55 && velocity<61) {
+      color = LED_ORANGE_MEDIUM;
+  }
+  if (velocity>50 && velocity<63) {
       color = LED_RED_MEDIUM;
   }
   if (velocity>63) {
@@ -139,6 +148,7 @@ void shapeDrawing1(uint8_t note, double radius, uint8_t velocity, uint16_t color
      return;
   }
   if (note%3 == 0) {
+     color = LED_RED_MEDIUM;
      matrix->fillTriangle(absNote-(velocity/velocity_division), yAxisCenter, absNote, yAxisCenter-radius,absNote+radius, yAxisCenter, color);
      return;
   }
@@ -181,11 +191,13 @@ void WiFiEvent(WiFiEvent_t event) {
         // Add the note to the vector
         vNote.push_back(note);
         // Crude test to use the pan Potentiometer to regulate shape size
+      #if defined(POTENCIOMETER_DIVISOR_KORG) && POTENCIOMETER_DIVISOR_KORG==1
         if (note==72 && velocity<21) {
           velocity_division = velocity;
           printf("divisor:%d\n",velocity_division);
           matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
         }
+      #endif
 
         cRadius = velocity/velocity_division;
         if (cRadius<2) cRadius=2;
