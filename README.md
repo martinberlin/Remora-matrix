@@ -8,6 +8,8 @@ Remora listens to UDP short commands or MIDI to trigger LED Matrix Animations. R
 
 Our previous [Firmware Remora](https://github.com/martinberlin/Remora) was intended to receive short commands from ORCΛ and make very simple Neopixels  animations on addressable LEDs stripes (WS2812B like)
 
+**PLAN A**
+
 To use this for the moment we convert incoming MIDI input to UDP using a **nodejs middleware**. To start it just go to the directory:
 
     cd middleware/midi-to-udp
@@ -19,6 +21,9 @@ There you will see what ports you have as incoming MIDI. You need a midi input s
     Listening to: rosegarden:out 1 - General MIDI Device 130:3 and forwarding to 192.168.12.109:49161
 
 This will redirect the MIDI notes to UDP. And the ESP32 will receive this UDP short messages and draw things in your LED Matrix.
+
+**PLAN B*+
+
 On next updates we will also a second way, that is receiving directly the MIDI signal in the ESP32, that will require an Sparkfun Midi-Arduino module. The design to connect the ESP32 is still on the works and it will take some weeks more to see the light.
 But if that works as expected, then there is no more middleware needed, and no more WiFi latence delay. So this should be actually the real thing if you want to be independant of WiFi. 
 
@@ -26,12 +31,12 @@ But if that works as expected, then there is no more middleware needed, and no m
 
 ## Ideas to develop
 
-* Use midi as a direct source to launch animations. No middlewares means less latency.
-* Have an alternative [Nodejs midi middleware](https://github.com/martinberlin/Remora-midi/tree/master/middleware) as an alternative so you don't need midi special gear to use this Firmware.
+* Have a [Nodejs midi middleware](https://github.com/martinberlin/Remora-midi/tree/master/middleware) as an alternative so you don't need midi special gear to use this Firmware. DONE
+* Plan B: Use midi as a direct source to launch animations.
 * Use [Adafruit Neomatrix GFX](https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library) as a graphic library for Neopixel matrix so you can treat it is as a display. That means full geometric functions and also font support.
 * Build a new midi language that has full chord support, state (on/off) and velocity.
 
-The language should be kept simple and also short so it can fly fast via UDP. First iteration looks like this:
+The language should be kept simple and also short so it can fly fast via UDP. First plan A iteration looks like this:
 
 ```
 Chord HEXA | note on/off (1 char) | velocity HEXA
