@@ -24,7 +24,7 @@ This will redirect the MIDI notes to UDP. And the ESP32 will receive this UDP sh
 
 **PLAN B**
 
-On next updates we will also a second way, that is receiving directly the MIDI signal in the ESP32, that will require an Sparkfun Midi-Arduino module to enable Midi thru and do the signal to serial conversion. The design to connect the ESP32 is still on the works and it will take some weeks more to see the light.
+On next updates we will also worrk in a module to receive directly the notes in the ESP32. Thhat will require an Sparkfun Midi-Arduino module to enable Midi thru and do the signal to serial conversion. The design to connect the ESP32 is still on the works and it will take some weeks more to see the light.
 If that works as expected, then there is no more middleware needed, and no more WiFi latence delay. So this should be actually the real thing if you want to be independant of WiFi. 
 
 ![Sparkfun MIDI](./assets/midi-arduino.jpg)
