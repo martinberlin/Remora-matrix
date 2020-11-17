@@ -1,4 +1,4 @@
-#include <SPI.h>                // Adafruit asks for this also we don't use SPI at all
+#include <SPI.h> 
 // Super proud of amazing Marc: https://github.com/marcmerlin All credits for this go to him!
 #include <Adafruit_GFX.h>
 #include <FastLED_NeoMatrix.h>
@@ -10,6 +10,11 @@
 #include "freertos/timers.h"
 #include "AsyncUDP.h"
 #include <vector>
+
+// Try out Hardware serial: https://forum.arduino.cc/index.php?topic=603775.0
+//#include <HardwareSerial.h>
+// serial(1) = pin27=RX green, pin26=TX white
+
 // Note all this define's are shared between demos so is defined in central platformio.ini
 
 // Create a vector containing incoming Notes
@@ -212,35 +217,25 @@ void shapeSelector(uint8_t note, double radius, uint8_t velocity, uint16_t color
   shapePianoKeys(note, cRadius, velocity, color);
 }
 
-void WiFiEvent(WiFiEvent_t event) {
-    Serial.printf("[WiFi-event] event: %d\n", event);
-    switch(event) {
-    case SYSTEM_EVENT_STA_GOT_IP:
-        Serial.println("WiFi connected");
-        matrix->print(WiFi.localIP().toString());
-        matrix->show();
 
-    // Start UDP
-    if(udp.listen(UDP_PORT)) {
-        Serial.println("UDP Listening on IP: ");
-        Serial.println(WiFi.localIP().toString()+":"+String(UDP_PORT));
-
-    
-    // Callback that gets fired every time an UDP Message arrives
-    udp.onPacket([](AsyncUDPPacket packet) {
+// Serial Callback 
+void serialIn(uint8_t in[5]) {
       if (firstNote) {
         matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
         matrix->show();
         firstNote = false;
       }
-      char note1 = packet.data()[0];
-      char note2 = packet.data()[1];
+
+      // Extract from Serial 
+      // NN1VV  Note (2) status (bool) Velocity (2) 
+      char note1 = in[0];
+      char note2 = in[1];
       char noteArray[2] = {note1,note2};
       uint8_t note = StrToHex(noteArray);
 
-      uint8_t status = packet.data()[2];
-      char velocity1 = packet.data()[3];
-      char velocity2 = packet.data()[4];
+      uint8_t status = in[2];
+      char velocity1 = in[3];
+      char velocity2 = in[4];
       char velArray[2] = {velocity1,velocity2};
       uint8_t velocity = StrToHex(velArray);          
       
@@ -283,45 +278,40 @@ void WiFiEvent(WiFiEvent_t event) {
         }
       }
       matrix->show();
-
-    });
-        break;
-
-    case SYSTEM_EVENT_STA_DISCONNECTED:
-        Serial.println("WiFi lost connection");
-	      xTimerStart(wifiReconnectTimer, 0);
-        matrix->print("No Wifi");
-        matrix->show();
-        break;
-    }
-    
-    }
 }
 
 void setup() {
     
     Serial.begin(115200);
+    Serial2.begin(SERIAL2_BAUDS, SERIAL_8N1, RXD2, TXD2);
+    delay(100);
+
     uint16_t numMatrix = MATRIX_WIDTH*MATRIX_HEIGHT;
     FastLED.addLeds<NEOPIXEL,MATRIX_DATA_PIN>(leds, numMatrix).setCorrection(TypicalLEDStrip);
 
     Serial.printf("COLORS\ngreen_low:%d blue_low:%d blue_medium:%d blue_high:%d\n red_low:%d red_medium:%d red_high:%d\n",
     LED_GREEN_LOW,LED_BLUE_LOW,LED_BLUE_MEDIUM,LED_BLUE_HIGH,LED_RED_LOW,LED_RED_MEDIUM,LED_RED_HIGH);
 
-    connectToWifi();
-
-    WiFi.onEvent(WiFiEvent);
-
-    // Set up automatic reconnect timer
-    wifiReconnectTimer = xTimerCreate("wifiTimer", pdMS_TO_TICKS(2000), pdFALSE, (void *)0, reinterpret_cast<TimerCallbackFunction_t>(connectToWifi));
-
 
     matrix->begin();
     matrix->setTextWrap(true);
     matrix->setBrightness(MATRIX_BRIGHTNESS);
     matrix->setTextColor(LED_ORANGE_MEDIUM);
-
+    matrix->print("Mini IN");
     matrix->show();
 }
 
 void loop() {
+
+  while (Serial2.available() > 0)
+  {
+    uint8_t midi_in = Serial2.read();
+
+    Serial.printf("%d ",midi_in);
+    if (midi_in == 7) {
+      Serial.println();
+    }
+    delay(600);
+  }
+
 }
