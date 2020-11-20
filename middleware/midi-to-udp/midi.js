@@ -10,7 +10,7 @@ const dgram = require('dgram');
 const noteStatusOn = 144;
 var udpclient = dgram.createSocket('udp4');
 
-var DEBUG = false;
+var DEBUG = true;
 var PORT = 49161;       // Default Orca UDP output port
 // Set up a new input.
 const input = new midi.Input();

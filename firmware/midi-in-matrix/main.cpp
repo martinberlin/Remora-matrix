@@ -216,7 +216,7 @@ void shapeSelector(uint8_t note, double radius, uint8_t velocity, uint16_t color
 
 
 // Serial Callback 
-void serialIn(uint8_t in[5]) {
+void serialIn(char in[5]) {
       if (firstNote) {
         matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
         matrix->show();
@@ -297,8 +297,12 @@ void setup() {
     matrix->show();
 }
 
-char midi_signal[] = "CNV"; // Channel Note Velocity
+char midi_signal[] = "MNV"; // Channel Note Velocity
 uint8_t midi_index = 0;
+// Allocates storage for our custom MSG
+char *midi_msg = (char*)malloc(13 * sizeof(char));
+uint8_t midi_channel = 1;
+uint8_t midi_status = 0;
 
 void loop() {
   // Call MIDI.read the fastest you can for real-time performance: Receiving in TXD2 pin
@@ -311,10 +315,31 @@ void loop() {
     uint8_t midi_in = Serial2.read();
      // RealTime messages discarded:
     if (midi_in >= 0xF8) break;
+    // channel is in low order bits and comes in byte 0
+    if (midi_index==0) {
+       midi_channel = (midi_in & 0x0F) + 1;
+       
+       if (midi_in & 0x80) {
+
+            // Decode midi message
+        switch ((midi_in >> 4) & 0x07)
+                {
+          case 0:
+              midi_status = 0;
+              break;
+          case 1:
+              midi_status = 1;
+              break;
+              // Fill with more cases if you want. For this example we are interested only on Note ON/OFF event
+          }
+          Serial.printf("Ch%d S:%d ", midi_channel, midi_status);
+      }
+    }
 
     Serial.printf("%c %d ", midi_signal[midi_index], midi_in);
     midi_index++;
     delay(1);
   }
-
 }
+
+  

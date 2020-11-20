@@ -29,6 +29,31 @@ If that works as expected, then there is no more middleware needed, and no more 
 
 ![Sparkfun MIDI](./assets/midi-arduino.jpg)
 
+## Our custom internal messages to unify both NodeJS and Midi SerialIN
+
+In order to unify both different takes of Firmware and in the future make a common class that will listen to same commands we invented a very short internal message that uses 6 characters. We use Hexadecimal to keep it always in 2 chars length:
+
+    2 chars (HEXA) representing Note played
+    1 boolean      representing Status (1 note on, 0 note off)
+    2 chars (HEXA) representing Velocity
+
+**NNSVV**  Note, Status, Velocity
+
+Example: 
+Playing DO in octave 3 that is 36 in decimal, velocity 60, Note ON message would be:
+
+    2413B
+    When the same note is released it could be:
+    24000
+
+Note that some synths also send the release Velocity so the last 2 chars hexa is not always 0.
+Channel filtering would be implemented on the future. Letting you choose between all channels or 2 channels configurable using the platformio.ini constants:
+
+    -D MIDI_LISTEN_CHANNEL1=0
+    -D MIDI_LISTEN_CHANNEL2=0
+
+On 0 it will allow all. If you use 1 and 2 for each constant then it will listen only to those channels. Channel filtering will be only available in Serial version since I still didn't discovered where it comes in the nodejs MIDI library. Feel free to explore the readme on [middleware/midi-to-udp](https://github.com/martinberlin/Remora-matrix/tree/master/middleware/midi-to-udp)
+
 ## Ideas to develop
 
 * Have a [Nodejs midi middleware](https://github.com/martinberlin/Remora-midi/tree/master/middleware) as an alternative so you don't need midi special gear to use this Firmware. DONE
