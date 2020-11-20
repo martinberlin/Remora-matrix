@@ -75,18 +75,15 @@ FastLED_NeoMatrix *matrix = new FastLED_NeoMatrix(leds, MATRIX_WIDTH, 10,
 #define LED_WHITE_MEDIUM	(LED_RED_MEDIUM  + LED_GREEN_MEDIUM  + LED_BLUE_MEDIUM)
 #define LED_WHITE_HIGH		(LED_RED_HIGH    + LED_GREEN_HIGH    + LED_BLUE_HIGH)
 
-TimerHandle_t wifiReconnectTimer;
+
+
+
 uint8_t offCount = 0;
 // Matrix pointers
 // cX, yAxisCenter, cRadius : Test to save this globally
 double cRadius = 0;
 uint16_t yAxisCenter = MATRIX_HEIGHT/2;
 bool firstNote = true;
-
-void connectToWifi() {
-  Serial.println("Connecting to Wi-Fi...");
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-}
 
 uint8_t StrToHex(char str[]) {
   return (uint8_t) strtol(str, 0, 16);
@@ -284,7 +281,6 @@ void setup() {
     
     Serial.begin(115200);
     Serial2.begin(SERIAL2_BAUDS, SERIAL_8N1, RXD2, TXD2);
-    delay(100);
 
     uint16_t numMatrix = MATRIX_WIDTH*MATRIX_HEIGHT;
     FastLED.addLeds<NEOPIXEL,MATRIX_DATA_PIN>(leds, numMatrix).setCorrection(TypicalLEDStrip);
@@ -301,17 +297,24 @@ void setup() {
     matrix->show();
 }
 
-void loop() {
+char midi_signal[] = "CNV"; // Channel Note Velocity
+uint8_t midi_index = 0;
 
+void loop() {
+  // Call MIDI.read the fastest you can for real-time performance: Receiving in TXD2 pin
   while (Serial2.available() > 0)
   {
-    uint8_t midi_in = Serial2.read();
-
-    Serial.printf("%d ",midi_in);
-    if (midi_in == 7) {
+    if (midi_index>2) {
+      midi_index=0;
       Serial.println();
     }
-    delay(600);
+    uint8_t midi_in = Serial2.read();
+     // RealTime messages discarded:
+    if (midi_in >= 0xF8) break;
+
+    Serial.printf("%c %d ", midi_signal[midi_index], midi_in);
+    midi_index++;
+    delay(1);
   }
 
 }
