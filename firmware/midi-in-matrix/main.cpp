@@ -11,11 +11,17 @@
 #include "AsyncUDP.h"
 #include <vector>
 
-// Try out Hardware serial: https://forum.arduino.cc/index.php?topic=603775.0
-//#include <HardwareSerial.h>
-// serial(1) = pin27=RX green, pin26=TX white
-
-// Note all this define's are shared between demos so is defined in central platformio.ini
+// Globals to keep track of loop() iterations
+uint8_t midi_channel = 1;
+uint8_t midi_index = 0;
+uint8_t midi_status = 0;
+uint8_t midi_note = 0;
+uint8_t midi_velocity = 0;
+uint8_t last_velocity = 127;
+char parser[8];
+// Stores the message that triggers a shape. NNSVV Note, Status, Velocity
+char midi_msg[6];
+// Hardware serial2 pins: Defined in platformio.ini
 
 // Create a vector containing incoming Notes
 std::vector<uint8_t> vNote;
@@ -74,9 +80,6 @@ FastLED_NeoMatrix *matrix = new FastLED_NeoMatrix(leds, MATRIX_WIDTH, 10,
 #define LED_WHITE_LOW		(LED_RED_LOW     + LED_GREEN_LOW     + LED_BLUE_LOW)
 #define LED_WHITE_MEDIUM	(LED_RED_MEDIUM  + LED_GREEN_MEDIUM  + LED_BLUE_MEDIUM)
 #define LED_WHITE_HIGH		(LED_RED_HIGH    + LED_GREEN_HIGH    + LED_BLUE_HIGH)
-
-
-
 
 uint8_t offCount = 0;
 // Matrix pointers
@@ -169,53 +172,53 @@ uint16_t colorSampler1(uint8_t velocity) {
   return color;
 }
 
-// Simple shape selector
-void shapeDrawing1(uint8_t note, double radius, uint8_t velocity, uint16_t color) {
-  double absNote = (note-53<1)?1:(note-53)*2;
-  uint8_t randomX = random(MATRIX_WIDTH);
-  uint8_t randomY = random(MATRIX_HEIGHT);
-  uint8_t randomX2 = random(MATRIX_WIDTH);
-  // If the note is pair then
-  if (note%2 == 0) {
-     matrix->fillCircle(absNote, yAxisCenter, radius, color);
-     return;
+// Shape selector 
+void shapeCircle(uint8_t note, double radius, uint8_t velocity, uint16_t color) {
+  matrix->fillCircle(note-MATRIX_X_OFFSET, yAxisCenter, radius, color);
+  return;
   }
-  if (note%3 == 0) {
-     matrix->fillTriangle(absNote-(velocity/10), yAxisCenter, absNote, yAxisCenter-radius,absNote+radius, yAxisCenter, rndColorLow(random(5)));
-     return;
+
+
+// Shape selector 
+void shapeTriangle(uint8_t note, double radius, uint8_t velocity, uint16_t color) {
+  uint8_t x = (note/3-MATRIX_X_OFFSET<1) ? 1 : (note/3-MATRIX_X_OFFSET);
+  matrix->fillTriangle(x, yAxisCenter, x, yAxisCenter-radius,x+radius, yAxisCenter, rndColorLow(random(5)));
+  return;
   }
-  if (note%5 == 0) {
-     matrix->fillTriangle(yAxisCenter, absNote-(velocity/10), absNote, yAxisCenter-radius,absNote+radius, yAxisCenter+(velocity/10), rndColorLow(random(5)));
-     return;
-  }
-  matrix->fillRect(absNote, yAxisCenter, radius, radius, color);
-}
 
 // Draw Piano keys selector
-void shapePianoKeys(uint8_t note, double radius, uint8_t velocity, uint16_t color) {
-  double absNote = (note-53<1)?4:(note-53)*2;
-  // If the note is pair then
-  if (note%2 == 0) {
-     matrix->fillRect(absNote, yAxisCenter, radius, radius*2, (color==0)?0:LED_WHITE_MEDIUM);
-     return;
-  }
-  if (note%3 == 0) {
-     matrix->fillRect(absNote, yAxisCenter, radius, radius*2, color);
-     return;
-  }
-  matrix->fillCircle(absNote, yAxisCenter, radius, color);
+void shapePianoKeys(uint8_t note, double radius, uint8_t velocity, uint16_t color) { 
+  uint8_t x = (note/4-MATRIX_X_OFFSET<1) ? 1 : (note/4-MATRIX_X_OFFSET);
+  //Serial.printf("Note:%d Kx:%d\n",note,x);
+  matrix->fillRect(x, yAxisCenter, radius, radius*2, (color==0)?0:LED_WHITE_MEDIUM);
+  return;
 }
 
 /**
- * Jumper function, uncomment here or add more shapes that will trigger with the Notes played
+ * Jumper function to select a shape. You can expand this to add more per each channel.
+ * Ex. Print a shape per instrument (1 is mostly Piano)
  */
 void shapeSelector(uint8_t note, double radius, uint8_t velocity, uint16_t color) {
-  //shapeDrawing1(note, cRadius, velocity, color);
-  shapePianoKeys(note, cRadius, velocity, color);
+  //Serial.printf("N:%d Size:%f V:%d Color:%d\n", note, cRadius, velocity, color);
+  switch (midi_channel)
+        {
+        case 1:
+          shapePianoKeys(note, cRadius, velocity, color);
+          break;
+        case 2:
+          shapeTriangle(note, cRadius, velocity, color);
+          break;
+        default:
+          shapeCircle(note, cRadius, velocity, color);
+          break;
+        }
+  return;
 }
 
-
-// Called after midi_msg is constructed
+/** Converts the message into a shape
+ * Note as with the Serial input we receive also the MIDI channel on this version we will use this information#
+ * to trigger different shapes, keeping the same message format
+ */
 void messageToShape(char in[6]) {
       if (firstNote) {
         matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
@@ -231,10 +234,14 @@ void messageToShape(char in[6]) {
       uint8_t note = StrToHex(noteArray);
 
       uint8_t status = in[2];
-      char velocity1 = in[3];
-      char velocity2 = in[4];
-      char velArray[2] = {velocity1,velocity2};
-      uint8_t velocity = StrToHex(velArray);          
+      #if defined(MIDI_FIXED_VELOCITY) && MIDI_FIXED_VELOCITY==0
+        char velocity1 = in[3];
+        char velocity2 = in[4];
+        char velArray[2] = {velocity1,velocity2};
+        uint8_t velocity = StrToHex(velArray);
+      #else    
+        uint8_t velocity = MIDI_FIXED_VELOCITY;
+      #endif
       
       if (status != 48) { // status 0: 48 in ASCII table is '0'
         // Add the note to the vector
@@ -250,13 +257,8 @@ void messageToShape(char in[6]) {
 
         cRadius = velocity/velocity_division;
         if (cRadius<2) cRadius=2;
-        shapeSelector(note, cRadius, velocity, colorSampler1(velocity));
 
-         #if defined(DEBUGMODE) && DEBUGMODE==1
-            Serial.printf("note:%d \n",note);
-            //Serial.printf("Note HEX:%c%c st:%c S:%d vel:%c%c\n",note1,note2,status,s,velocity1,velocity2);
-            Serial.printf("N:%d V:%d cX:%.1f cR:%.1f col:%d\n", note, velocity,cX,cRadius,color);
-         #endif
+        shapeSelector(note, cRadius, velocity, colorSampler1(velocity));
          
       } else { 
         // Iterate and delete released notes from Vector
@@ -265,9 +267,12 @@ void messageToShape(char in[6]) {
         for ( ; it != vNote.end(); ) {
           if (*it==note) {
             it = vNote.erase(it);
-            //printf("delNote:%d ",note);
             // status 1: Turn this note off drawing same shape in Black
             // Missing to store here the other elemements of the note like cRadius
+
+            // Note: We are using last_velocity which is not always the optimal choice. 
+            //       Otherwise some Synths send a release velocity and we delete just part of the shape
+            //Serial.printf("Delete shape for note %d Radius %f Vel %d\n", note, cRadius, last_velocity);
             shapeSelector(note, cRadius, velocity, matrix->Color(0,0,0));
           } else {
             ++it;
@@ -288,25 +293,13 @@ void setup() {
     Serial.printf("COLORS\ngreen_low:%d blue_low:%d blue_medium:%d blue_high:%d\n red_low:%d red_medium:%d red_high:%d\n",
     LED_GREEN_LOW,LED_BLUE_LOW,LED_BLUE_MEDIUM,LED_BLUE_HIGH,LED_RED_LOW,LED_RED_MEDIUM,LED_RED_HIGH);
 
-
     matrix->begin();
     matrix->setTextWrap(true);
     matrix->setBrightness(MATRIX_BRIGHTNESS);
     matrix->setTextColor(LED_ORANGE_MEDIUM);
-    matrix->print("Mini IN");
+    matrix->print("Midi IN");
     matrix->show();
 }
-
-
-// Globals to keep track of loop() iterations
-uint8_t midi_channel = 1;
-uint8_t midi_index = 0;
-uint8_t midi_status = 0;
-uint8_t midi_note = 0;
-uint8_t midi_velocity = 0;
-char parser[8];
-// Stores the message that triggers a shape
-char midi_msg[6]; //NNSVV Note, Status, Velocity
 
 void loop() {
   // Call MIDI.read the fastest you can for real-time performance: Receiving in TXD2 pin
@@ -348,8 +341,13 @@ void loop() {
         
         // Last byte received. Call our function to render the event
         // Note[2] HEX Status[1] BOOL Velocity[2] HEX
-        if (midi_velocity<16) {
+        // Make nice this fucking mess, is only to force HEX to be 2 chars always
+        if (midi_note<16 && midi_velocity>15) {
+          sprintf(parser, "%s", "0%x%d%x");
+        } else if(midi_note>15 && midi_velocity<16) {
           sprintf(parser, "%s", "%x%d0%x");
+        } else if(midi_note<16 && midi_velocity<16) {
+          sprintf(parser, "%s", "0%x%d0%x");
         } else {
           sprintf(parser, "%s", "%x%d%x");
         }
