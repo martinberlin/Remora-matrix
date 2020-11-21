@@ -215,8 +215,8 @@ void shapeSelector(uint8_t note, double radius, uint8_t velocity, uint16_t color
 }
 
 
-// Serial Callback 
-void serialIn(char in[5]) {
+// Called after midi_msg is constructed
+void messageToShape(char in[6]) {
       if (firstNote) {
         matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
         matrix->show();
@@ -297,12 +297,16 @@ void setup() {
     matrix->show();
 }
 
-char midi_signal[] = "MNV"; // Channel Note Velocity
-uint8_t midi_index = 0;
-// Allocates storage for our custom MSG
-char *midi_msg = (char*)malloc(13 * sizeof(char));
+
+// Globals to keep track of loop() iterations
 uint8_t midi_channel = 1;
+uint8_t midi_index = 0;
 uint8_t midi_status = 0;
+uint8_t midi_note = 0;
+uint8_t midi_velocity = 0;
+char parser[8];
+// Stores the message that triggers a shape
+char midi_msg[6]; //NNSVV Note, Status, Velocity
 
 void loop() {
   // Call MIDI.read the fastest you can for real-time performance: Receiving in TXD2 pin
@@ -310,20 +314,18 @@ void loop() {
   {
     if (midi_index>2) {
       midi_index=0;
-      Serial.println();
     }
     uint8_t midi_in = Serial2.read();
      // RealTime messages discarded:
     if (midi_in >= 0xF8) break;
+
     // channel is in low order bits and comes in byte 0
     if (midi_index==0) {
        midi_channel = (midi_in & 0x0F) + 1;
        
        if (midi_in & 0x80) {
-
-            // Decode midi message
-        switch ((midi_in >> 4) & 0x07)
-                {
+            // Decode midi message that comes in first byte
+        switch ((midi_in >> 4) & 0x07) {
           case 0:
               midi_status = 0;
               break;
@@ -331,14 +333,42 @@ void loop() {
               midi_status = 1;
               break;
               // Fill with more cases if you want. For this example we are interested only on Note ON/OFF event
+              // There is additional messages like Program change, Pitch wheel, Control change and many more!
+              // More info: https://www.gammon.com.au/forum/?id=12746
           }
-          Serial.printf("Ch%d S:%d ", midi_channel, midi_status);
+          
       }
     }
-
-    Serial.printf("%c %d ", midi_signal[midi_index], midi_in);
+    switch (midi_index) {
+        case 1:
+        midi_note = midi_in;
+        break;
+        case 2:
+        midi_velocity = midi_in;
+        
+        // Last byte received. Call our function to render the event
+        // Note[2] HEX Status[1] BOOL Velocity[2] HEX
+        if (midi_velocity<16) {
+          sprintf(parser, "%s", "%x%d0%x");
+        } else {
+          sprintf(parser, "%s", "%x%d%x");
+        }
+        sprintf(midi_msg, parser, midi_note, midi_status, midi_velocity);
+        // Channels defined as global constants in platformio.ini
+        // Listen all or only two channels. Expand this for more:
+        if (MIDI_LISTEN_CHANNEL1==0) {
+          messageToShape(midi_msg);
+        } else if(MIDI_LISTEN_CHANNEL1==midi_channel || MIDI_LISTEN_CHANNEL2==midi_channel) {
+          messageToShape(midi_msg);
+        }
+        
+        #if defined(DEBUGMODE) && DEBUGMODE==1
+         Serial.printf("Ch%d Note:%d S:%d Vel:%d message: %s\n", midi_channel, midi_note, midi_status, midi_velocity, midi_msg);
+        #endif
+        break;
+    }
+  
     midi_index++;
-    delay(1);
   }
 }
 

@@ -39,7 +39,11 @@ In order to unify both different takes of Firmware and in the future make a comm
 
 **NNSVV**  Note, Status, Velocity
 
-Example: 
+In the **udp-midi-matrix** version the middleware script should midi.js should be running in the background in order to convert MIDI signals into short UDP messages. 
+
+In the **midi-in-matrix** version the midi is converted to UART using Sparkfun midi HAT and received directly in HardwareSerial port (Serial2) in the ESP32. So this version is WiFi independant and should have less latency. But has the downside that you need to use Midi IN cables.
+
+**Example:**
 Playing DO in octave 3 that is 36 in decimal, velocity 60, Note ON message would be:
 
     2413B
@@ -57,9 +61,9 @@ On 0 it will allow all. If you use 1 and 2 for each constant then it will listen
 ## Ideas to develop
 
 * Have a [Nodejs midi middleware](https://github.com/martinberlin/Remora-midi/tree/master/middleware) as an alternative so you don't need midi special gear to use this Firmware. DONE
-* Plan B: Use midi as a direct source to launch animations.
-* Use [Adafruit Neomatrix GFX](https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library) as a graphic library for Neopixel matrix so you can treat it is as a display. That means full geometric functions and also font support.
-* Build a new midi language that has full chord support, state (on/off) and velocity.
+* Plan B: Use midi as a direct source to launch animations. ON THE WORKS (midi-in-matrix)
+* Use [Adafruit Neomatrix GFX](https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library) as a graphic library for Neopixel matrix so you can treat it is as a display. That means full geometric functions and also font support. DONE using awesome FastLED_NeoMatrix (credits: Marc Merlin)
+* Build a new midi language that has full chord support, state (on/off) and velocity. DONE
 
 The language should be kept simple and also short so it can fly fast via UDP. First plan A iteration looks like this:
 
