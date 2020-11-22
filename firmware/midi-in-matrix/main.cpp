@@ -25,10 +25,11 @@ char midi_msg[6];
 
 // Create a vector containing incoming Notes
 std::vector<uint8_t> vNote;
+uint8_t note_last_velocity[127];
 // Enabling this converts Note 71 that is electribe's potentiometer into the velocity divisor (Makes smaller/bigger shapes)
 #define POTENCIOMETER_DIVISOR_KORG 0
 // If the figures are too small just reduce this. If too big, just increase. SIZE / velocity_division
-uint8_t velocity_division = 20;
+uint8_t velocity_division = 14;
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
@@ -83,8 +84,8 @@ FastLED_NeoMatrix *matrix = new FastLED_NeoMatrix(leds, MATRIX_WIDTH, 10,
 
 uint8_t offCount = 0;
 // Matrix pointers
-// cX, yAxisCenter, cRadius : Test to save this globally
-double cRadius = 0;
+// cX, yAxisCenter, shapeSize : Test to save this globally
+double shapeSize = 0;
 uint16_t yAxisCenter = MATRIX_HEIGHT/2;
 bool firstNote = true;
 
@@ -189,7 +190,7 @@ void shapeTriangle(uint8_t note, double radius, uint8_t velocity, uint16_t color
 // Draw Piano keys selector
 void shapePianoKeys(uint8_t note, double radius, uint8_t velocity, uint16_t color) { 
   uint8_t x = (note/4-MATRIX_X_OFFSET<1) ? 1 : (note/4-MATRIX_X_OFFSET);
-  //Serial.printf("Note:%d Kx:%d\n",note,x);
+  //Serial.printf("N:%d x:%d\n",note,x);
   matrix->fillRect(x, yAxisCenter, radius, radius*2, (color==0)?0:LED_WHITE_MEDIUM);
   return;
 }
@@ -198,18 +199,18 @@ void shapePianoKeys(uint8_t note, double radius, uint8_t velocity, uint16_t colo
  * Jumper function to select a shape. You can expand this to add more per each channel.
  * Ex. Print a shape per instrument (1 is mostly Piano)
  */
-void shapeSelector(uint8_t note, double radius, uint8_t velocity, uint16_t color) {
-  //Serial.printf("N:%d Size:%f V:%d Color:%d\n", note, cRadius, velocity, color);
+void shapeSelector(uint8_t note, double shapeSize, uint8_t velocity, uint16_t color) {
+  //Serial.printf("N:%d Size:%f V:%d Color:%d\n", note, shapeSize, velocity, color);
   switch (midi_channel)
         {
         case 1:
-          shapePianoKeys(note, cRadius, velocity, color);
+          shapePianoKeys(note, shapeSize, velocity, color);
           break;
         case 2:
-          shapeTriangle(note, cRadius, velocity, color);
+          shapeTriangle(note, shapeSize, velocity, color);
           break;
         default:
-          shapeCircle(note, cRadius, velocity, color);
+          shapeCircle(note, shapeSize, velocity, color);
           break;
         }
   return;
@@ -255,11 +256,13 @@ void messageToShape(char in[6]) {
         }
       #endif
 
-        cRadius = velocity/velocity_division;
-        if (cRadius<2) cRadius=2;
+        shapeSize = velocity/velocity_division;
+        if (shapeSize<2) shapeSize=2;
 
-        shapeSelector(note, cRadius, velocity, colorSampler1(velocity));
-         
+        shapeSelector(note, shapeSize, velocity, colorSampler1(velocity));
+        //Serial.printf("ON :%d Size:%f V:%d\n", note, shapeSize, velocity);
+
+        note_last_velocity[note] = velocity;
       } else { 
         // Iterate and delete released notes from Vector
 
@@ -267,13 +270,9 @@ void messageToShape(char in[6]) {
         for ( ; it != vNote.end(); ) {
           if (*it==note) {
             it = vNote.erase(it);
-            // status 1: Turn this note off drawing same shape in Black
-            // Missing to store here the other elemements of the note like cRadius
-
-            // Note: We are using last_velocity which is not always the optimal choice. 
-            //       Otherwise some Synths send a release velocity and we delete just part of the shape
-            //Serial.printf("Delete shape for note %d Radius %f Vel %d\n", note, cRadius, last_velocity);
-            shapeSelector(note, cRadius, velocity, matrix->Color(0,0,0));
+            //Turn this note off drawing same shape in Black
+            //Serial.printf("OFF: %d size %f Vel %d\n", note, shapeSize, note_last_velocity[note]);
+            shapeSelector(note, shapeSize, note_last_velocity[note], matrix->Color(0,0,0));
           } else {
             ++it;
           }
