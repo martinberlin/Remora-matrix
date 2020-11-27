@@ -325,8 +325,11 @@ void loop() {
       midi_index=0;
     }
     uint8_t midi_in = Serial2.read();
-     // RealTime messages discarded:
-    if (midi_in >= 0xF8) break;
+    
+    // Add here midi_in messages that should be ignored
+    //Serial.printf("%d ", midi_in); // uncomment for debug
+    // RealTime messages discarded, Korg change Pattern (176) also:
+    if (midi_in >= 0xF8 || midi_in == 176) break;
 
     switch (midi_index) {
         case 0:
