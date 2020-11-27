@@ -199,7 +199,7 @@ void shapeRectangle(uint8_t x, double radius, uint8_t velocity, uint16_t color) 
 
 // Draw Piano keys selector
 void shapePianoKeys(uint8_t x, double radius, uint8_t velocity, uint16_t color) { 
-  Serial.printf("Ch:%d N:%d x:%d Vel:%d\n",midi_channel,midi_note,x,velocity);
+  //Serial.printf("Ch:%d N:%d x:%d Vel:%d\n",midi_channel,midi_note,x,velocity);
   matrix->fillRect(x, yAxisCenter, radius, velocity/4, (color==0)?0:LED_WHITE_MEDIUM); // LED_WHITE_MEDIUM
   return;
 }
@@ -328,27 +328,27 @@ void loop() {
      // RealTime messages discarded:
     if (midi_in >= 0xF8) break;
 
-    // channel is in low order bits and comes in byte 0
-    if (midi_index==0) {
-       midi_channel = (midi_in & 0x0F) + 1;
-       
-       if (midi_in & 0x80) {
-            // Decode midi message that comes in first byte
-        switch ((midi_in >> 4) & 0x07) {
-          case 0:
-              midi_status = 0;
-              break;
-          case 1:
-              midi_status = 1;
-              break;
-              // Fill with more cases if you want. For this example we are interested only on Note ON/OFF event
-              // There is additional messages like Program change, Pitch wheel, Control change and many more!
-              // More info: https://www.gammon.com.au/forum/?id=12746
-          }
-          
-      }
-    }
     switch (midi_index) {
+        case 0:
+        // channel is in low order bits and comes in byte 0
+        midi_channel = (midi_in & 0x0F) + 1;
+          
+        if (midi_in & 0x80) {
+              // Decode midi message that comes in first byte
+          switch ((midi_in >> 4) & 0x07) {
+            case 0:
+                midi_status = 0;
+                break;
+            case 1:
+                midi_status = 1;
+                break;
+                // Fill with more cases if you want. For this example we are interested only on Note ON/OFF event
+                // There is additional messages like Program change, Pitch wheel, Control change and many more!
+                // More info: https://www.gammon.com.au/forum/?id=12746
+            }
+            
+        }
+
         case 1:
         midi_note = midi_in;
         break;
