@@ -18,6 +18,8 @@ uint8_t midi_status = 0;
 uint8_t midi_note = 0;
 uint8_t midi_velocity = 0;
 uint8_t last_velocity = 127;
+double note_x_factor = (MIDI_TOP_OCTAVE*12)/MATRIX_WIDTH;
+uint8_t erase_counter=0;
 char parser[8];
 // Stores the message that triggers a shape. NNSVV Note, Status, Velocity
 char midi_msg[6];
@@ -29,7 +31,7 @@ uint8_t note_last_velocity[127];
 // Enabling this converts Note 71 that is electribe's potentiometer into the velocity divisor (Makes smaller/bigger shapes)
 #define POTENCIOMETER_DIVISOR_KORG 0
 // If the figures are too small just reduce this. If too big, just increase. SIZE / velocity_division
-uint8_t velocity_division = 14;
+uint8_t velocity_division = 15;
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
@@ -165,33 +167,40 @@ uint16_t colorSampler1(uint8_t velocity) {
       color = LED_ORANGE_MEDIUM;
   }
   if (velocity>50 && velocity<63) {
+      color = LED_RED_LOW;
+  }
+  if (velocity>62 && velocity<81) {
       color = LED_RED_MEDIUM;
   }
-  if (velocity>63) {
+  if (velocity>80 && velocity<97) {
+      color = LED_RED_HIGH;
+  }
+  if (velocity>96) {
     color = rndColor(randomColor);
   }
   return color;
 }
 
-// Shape selector 
-void shapeCircle(uint8_t note, double radius, uint8_t velocity, uint16_t color) {
-  matrix->fillCircle(note-MATRIX_X_OFFSET, yAxisCenter, radius, color);
+// Feel free to adapt and expand this shape selectors!
+void shapeCircle(uint8_t x, double radius, uint8_t velocity, uint16_t color) {  
+  matrix->fillCircle(x, yAxisCenter, radius/3, color);
   return;
   }
 
-
-// Shape selector 
-void shapeTriangle(uint8_t note, double radius, uint8_t velocity, uint16_t color) {
-  uint8_t x = (note/3-MATRIX_X_OFFSET<1) ? 1 : (note/3-MATRIX_X_OFFSET);
-  matrix->fillTriangle(x, yAxisCenter, x, yAxisCenter-radius,x+radius, yAxisCenter, rndColorLow(random(5)));
+void shapeTriangle(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
+  matrix->fillTriangle(x, yAxisCenter, x, yAxisCenter-radius,x+radius, yAxisCenter, colorSampler1(velocity));
   return;
   }
+
+void shapeRectangle(uint8_t x, double radius, uint8_t velocity, uint16_t color) { 
+  matrix->fillRoundRect(x, yAxisCenter, radius, velocity/3, 4, colorSampler1(velocity)); // LED_WHITE_MEDIUM
+  return;
+}
 
 // Draw Piano keys selector
-void shapePianoKeys(uint8_t note, double radius, uint8_t velocity, uint16_t color) { 
-  uint8_t x = (note/4-MATRIX_X_OFFSET<1) ? 1 : (note/4-MATRIX_X_OFFSET);
-  //Serial.printf("N:%d x:%d\n",note,x);
-  matrix->fillRect(x, yAxisCenter, radius, radius*2, (color==0)?0:LED_WHITE_MEDIUM);
+void shapePianoKeys(uint8_t x, double radius, uint8_t velocity, uint16_t color) { 
+  Serial.printf("Ch:%d N:%d x:%d Vel:%d\n",midi_channel,midi_note,x,velocity);
+  matrix->fillRect(x, yAxisCenter, radius, velocity/4, (color==0)?0:LED_WHITE_MEDIUM); // LED_WHITE_MEDIUM
   return;
 }
 
@@ -200,17 +209,20 @@ void shapePianoKeys(uint8_t note, double radius, uint8_t velocity, uint16_t colo
  * Ex. Print a shape per instrument (1 is mostly Piano)
  */
 void shapeSelector(uint8_t note, double shapeSize, uint8_t velocity, uint16_t color) {
-  //Serial.printf("N:%d Size:%f V:%d Color:%d\n", note, shapeSize, velocity, color);
+  uint8_t x = (note-(MIDI_BASE_OCTAVE*12))+MIDI_X_OFFSET_PIXELS;
   switch (midi_channel)
         {
         case 1:
-          shapePianoKeys(note, shapeSize, velocity, color);
+          shapePianoKeys(x, shapeSize, velocity, color);
           break;
         case 2:
-          shapeTriangle(note, shapeSize, velocity, color);
+          shapeTriangle(x, shapeSize, velocity, color);
+          break;
+        case 3:
+          shapeRectangle(x, shapeSize, velocity, color);
           break;
         default:
-          shapeCircle(note, shapeSize, velocity, color);
+          shapeCircle(x, shapeSize, velocity, color);
           break;
         }
   return;
@@ -221,6 +233,10 @@ void shapeSelector(uint8_t note, double shapeSize, uint8_t velocity, uint16_t co
  * to trigger different shapes, keeping the same message format
  */
 void messageToShape(char in[6]) {
+  erase_counter++;
+  if (erase_counter%10) {
+    matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
+  }
       if (firstNote) {
         matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
         matrix->show();
@@ -288,6 +304,7 @@ void setup() {
 
     uint16_t numMatrix = MATRIX_WIDTH*MATRIX_HEIGHT;
     FastLED.addLeds<NEOPIXEL,MATRIX_DATA_PIN>(leds, numMatrix).setCorrection(TypicalLEDStrip);
+    Serial.printf("Remora-Matrix\nNote X factor:%.2f\n", note_x_factor);
 
     Serial.printf("COLORS\ngreen_low:%d blue_low:%d blue_medium:%d blue_high:%d\n red_low:%d red_medium:%d red_high:%d\n",
     LED_GREEN_LOW,LED_BLUE_LOW,LED_BLUE_MEDIUM,LED_BLUE_HIGH,LED_RED_LOW,LED_RED_MEDIUM,LED_RED_HIGH);
@@ -359,8 +376,9 @@ void loop() {
           messageToShape(midi_msg);
         }
         
+        //Serial.printf("Ch%d Note:%d\n M:%s",midi_channel, midi_note,midi_msg);
         #if defined(DEBUGMODE) && DEBUGMODE==1
-         Serial.printf("Ch%d Note:%d S:%d Vel:%d message: %s\n", midi_channel, midi_note, midi_status, midi_velocity, midi_msg);
+         Serial.printf("Ch%d N:%d S:%d V:%d\n", midi_channel, midi_note, midi_status, midi_velocity);
         #endif
         break;
     }
