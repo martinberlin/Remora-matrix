@@ -89,7 +89,8 @@ uint8_t offCount = 0;
 // Matrix pointers
 // cX, yAxisCenter, shapeSize : Test to save this globally
 double shapeSize = 0;
-uint16_t yAxisCenter = MATRIX_HEIGHT/2;
+// Feel free to modify this to adapt to your display. MIDDLE - Yoffset (Negative brings it up/down depending on your display config)
+uint16_t yAxisCenter = MATRIX_HEIGHT/2-5;
 bool firstNote = true;
 
 uint8_t StrToHex(char str[]) {
@@ -195,6 +196,19 @@ uint16_t colorSampler1(uint8_t velocity) {
   return color;
 }
 
+bool isSemitone(uint8_t note) {
+  bool semitone = false;
+  uint8_t octave = note/12;
+  uint8_t chord = note - (octave*12);
+  if ((chord<4 && chord%2!=0) || (chord>5 && chord%2==0)) {
+    semitone = true;
+  }
+  #if defined(DEBUGMODE) && DEBUGMODE==1
+    Serial.printf("Ch:%d N:%d Oct:%d Chord:%d #:%d\n", midi_channel, midi_note, octave, chord, semitone);
+  #endif
+  return semitone;
+}
+
 // Feel free to adapt and expand this shape selectors!
 void shapeCircle(uint8_t x, double radius, uint8_t velocity, uint16_t color) {  
   matrix->fillCircle(x, yAxisCenter, radius/3, color);
@@ -224,16 +238,19 @@ void shapeRectangle(uint8_t x, double radius, uint8_t velocity, uint16_t color) 
 
 // Draw Piano keys selector
 void shapePianoKeys(uint8_t x, double radius, uint8_t velocity, uint16_t color) { 
+  uint8_t semiYOffset = (isSemitone(midi_note)) ? 6 : 0;
   //Serial.printf("Ch:%d N:%d x:%d Vel:%d\n",midi_channel,midi_note,x,velocity);
-  matrix->fillRect(x, yAxisCenter-4, radius, velocity/4, (color==0)?0:LED_WHITE_MEDIUM); // LED_WHITE_MEDIUM
+  matrix->fillRect(x, yAxisCenter-semiYOffset, radius, velocity/4, (color==0)?0:LED_WHITE_MEDIUM); // LED_WHITE_MEDIUM
   return;
 }
 void shapePianoKeys2(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
-  matrix->fillRect(x, yAxisCenter-4, radius, velocity/5, (color==0)?0:LED_WHITE_LOW); // LED_WHITE_MEDIUM
+  uint8_t semiYOffset = (isSemitone(midi_note)) ? 8 : 0;
+  matrix->fillRect(x, yAxisCenter-semiYOffset, radius, velocity/5, (color==0)?0:LED_WHITE_LOW); // LED_WHITE_MEDIUM
   return;
 }
 void shapePianoKeys3(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
-  matrix->fillRect(x, yAxisCenter, radius, velocity/5, (color==0)?0:matrix->Color(100,100,0)); // yellow
+  uint8_t semiYOffset = (isSemitone(midi_note)) ? 10 : 0;
+  matrix->fillRect(x, yAxisCenter-semiYOffset, radius, velocity/5, (color==0)?0:matrix->Color(100,100,0)); // yellow
   return;
 }
 
@@ -415,6 +432,10 @@ void loop() {
         midi_velocity = midi_in;
         // Control signal ignore. Don't send shape to matrix, just a number flash
         if (midi_control_ignore) {
+          // A practical way to restart this from Synth if it hanged, turning know all to left+1
+          if (midi_in==1) {
+            ESP.restart();
+          }
           matrix->setCursor(2,10);
           matrix->printf("%d", midi_in);
           matrix->show();
@@ -439,11 +460,10 @@ void loop() {
         // Listen all or only two channels. Expand this for more:
         if (MIDI_LISTEN_CHANNEL1==0) {
           messageToShape(midi_msg);
-          delayMicroseconds(1);
         } else if(MIDI_LISTEN_CHANNEL1==midi_channel || MIDI_LISTEN_CHANNEL2==midi_channel) {
           messageToShape(midi_msg);
         }
-        
+        delayMicroseconds(10);
         //Serial.printf("Ch%d Note:%d\n M:%s",midi_channel, midi_note,midi_msg);
         #if defined(DEBUGMODE) && DEBUGMODE==1
          Serial.printf("Ch%d N:%d S:%d V:%d\n", midi_channel, midi_note, midi_status, midi_velocity);
