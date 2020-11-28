@@ -31,7 +31,7 @@ uint8_t note_last_velocity[127];
 // Enabling this converts Note 71 that is electribe's potentiometer into the velocity divisor (Makes smaller/bigger shapes)
 #define POTENCIOMETER_DIVISOR_KORG 0
 // If the figures are too small just reduce this. If too big, just increase. SIZE / velocity_division
-uint8_t velocity_division = 15;
+uint8_t velocity_division = 10;
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
@@ -64,6 +64,7 @@ FastLED_NeoMatrix *matrix = new FastLED_NeoMatrix(leds, MATRIX_WIDTH, 10,
 #define LED_BLUE_LOW 	    7
 #define LED_BLUE_MEDIUM 	15
 #define LED_BLUE_HIGH 		31
+
 #define LED_ORANGE_VERYLOW	(LED_RED_VERYLOW + LED_GREEN_VERYLOW)
 #define LED_ORANGE_LOW		(LED_RED_LOW     + LED_GREEN_LOW)
 #define LED_ORANGE_MEDIUM	(LED_RED_MEDIUM  + LED_GREEN_MEDIUM)
@@ -137,8 +138,21 @@ switch (randomColor)
     case 5:
       color = LED_CYAN_HIGH;
       break;
+    case 6:
+      color = LED_PURPLE_VERYLOW;
+      break;
+    case 7:
+      color = matrix->Color(100,100,0);
+      break;
+    case 8:
+      color = matrix->Color(150,150,0);
+      break;
+    case 9:
+      color = LED_WHITE_MEDIUM;
+      break;
+
     default:
-      color = LED_ORANGE_HIGH;
+      color = LED_WHITE_HIGH;
       break;
     }
     return color;
@@ -188,19 +202,38 @@ void shapeCircle(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
   }
 
 void shapeTriangle(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
-  matrix->fillTriangle(x, yAxisCenter, x, yAxisCenter-radius,x+radius, yAxisCenter, colorSampler1(velocity));
+  matrix->fillTriangle(x, yAxisCenter, x, yAxisCenter-radius,x+radius, yAxisCenter, (color==0)?0:colorSampler1(velocity));
   return;
   }
-
+void shapeTriangle2(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
+  matrix->fillTriangle(x, yAxisCenter, x, yAxisCenter+radius,x, yAxisCenter, (color==0)?0:LED_WHITE_MEDIUM);
+  return;
+  }
+void shapeTriangle3(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
+  matrix->fillTriangle(x, yAxisCenter, x, yAxisCenter+radius, x-radius, yAxisCenter, (color==0)?0:velocity);
+  return;
+  }
+void shapeLine(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
+  matrix->drawFastHLine(x, yAxisCenter,velocity/velocity_division,color);
+  return;
+  }
 void shapeRectangle(uint8_t x, double radius, uint8_t velocity, uint16_t color) { 
-  matrix->fillRoundRect(x, yAxisCenter, radius, velocity/3, 4, colorSampler1(velocity)); // LED_WHITE_MEDIUM
+  matrix->fillRoundRect(x, yAxisCenter+4, radius, velocity/4, 4, rndColor(midi_note%10)); 
   return;
 }
 
 // Draw Piano keys selector
 void shapePianoKeys(uint8_t x, double radius, uint8_t velocity, uint16_t color) { 
   //Serial.printf("Ch:%d N:%d x:%d Vel:%d\n",midi_channel,midi_note,x,velocity);
-  matrix->fillRect(x, yAxisCenter, radius, velocity/4, (color==0)?0:LED_WHITE_MEDIUM); // LED_WHITE_MEDIUM
+  matrix->fillRect(x, yAxisCenter-4, radius, velocity/4, (color==0)?0:LED_WHITE_MEDIUM); // LED_WHITE_MEDIUM
+  return;
+}
+void shapePianoKeys2(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
+  matrix->fillRect(x, yAxisCenter-4, radius, velocity/5, (color==0)?0:LED_WHITE_LOW); // LED_WHITE_MEDIUM
+  return;
+}
+void shapePianoKeys3(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
+  matrix->fillRect(x, yAxisCenter, radius, velocity/5, (color==0)?0:matrix->Color(100,100,0)); // yellow
   return;
 }
 
@@ -221,6 +254,20 @@ void shapeSelector(uint8_t note, double shapeSize, uint8_t velocity, uint16_t co
         case 3:
           shapeRectangle(x, shapeSize, velocity, color);
           break;
+        case 4:
+          shapePianoKeys2(x, shapeSize, velocity, color);
+          break;
+        case 5:
+          shapePianoKeys3(x, shapeSize, velocity, color);
+          break;
+        case 6:
+          shapeTriangle2(x, shapeSize, velocity, color);
+          break;
+        case 7:
+          shapeTriangle3(x, shapeSize, velocity, color);
+        case 8:
+          shapeLine(x, shapeSize, velocity, color);
+        break;
         default:
           shapeCircle(x, shapeSize, velocity, color);
           break;
@@ -312,10 +359,13 @@ void setup() {
     matrix->begin();
     matrix->setTextWrap(true);
     matrix->setBrightness(MATRIX_BRIGHTNESS);
-    matrix->setTextColor(LED_ORANGE_MEDIUM);
+    matrix->setTextColor(LED_BLUE_MEDIUM);
     matrix->print("Midi IN");
     matrix->show();
+    matrix->setTextColor(LED_BLUE_LOW);
 }
+
+bool midi_control_ignore = false;
 
 void loop() {
   // Call MIDI.read the fastest you can for real-time performance: Receiving in TXD2 pin
@@ -328,11 +378,16 @@ void loop() {
     
     // Add here midi_in messages that should be ignored
     //Serial.printf("%d ", midi_in); // uncomment for debug
-    // RealTime messages discarded, Korg change Pattern (176) also:
-    if (midi_in >= 0xF8 || midi_in == 176) break;
+    // RealTime messages discarded
+    if (midi_in >= 0xF8) break;
 
     switch (midi_index) {
         case 0:
+        // Korg change Pattern 176: Identify and flag this message as midi_control_ignore so it's not sent as a shape
+        if (midi_in == 176) {
+          midi_control_ignore = true;
+        }
+
         // channel is in low order bits and comes in byte 0
         midi_channel = (midi_in & 0x0F) + 1;
           
@@ -355,9 +410,18 @@ void loop() {
         case 1:
         midi_note = midi_in;
         break;
+
         case 2:
         midi_velocity = midi_in;
-        
+        // Control signal ignore. Don't send shape to matrix, just a number flash
+        if (midi_control_ignore) {
+          matrix->setCursor(2,10);
+          matrix->printf("%d", midi_in);
+          matrix->show();
+          midi_control_ignore = false;
+          delayMicroseconds(100);
+          break;
+        }
         // Last byte received. Call our function to render the event
         // Note[2] HEX Status[1] BOOL Velocity[2] HEX
         // Make nice this fucking mess, is only to force HEX to be 2 chars always
@@ -375,6 +439,7 @@ void loop() {
         // Listen all or only two channels. Expand this for more:
         if (MIDI_LISTEN_CHANNEL1==0) {
           messageToShape(midi_msg);
+          delayMicroseconds(1);
         } else if(MIDI_LISTEN_CHANNEL1==midi_channel || MIDI_LISTEN_CHANNEL2==midi_channel) {
           messageToShape(midi_msg);
         }
@@ -389,5 +454,3 @@ void loop() {
     midi_index++;
   }
 }
-
-  
