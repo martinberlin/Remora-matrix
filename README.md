@@ -1,16 +1,12 @@
 ![Remora Logo](./assets/remora-matrix.svg)
 
-# Remora-matrix
-
-Remora listens to UDP short commands or MIDI to trigger LED Matrix Animations. Receives ; commands from [ORCΛ](https://github.com/hundredrabbits/Orca)
-
 ## Launching matrix effects using MIDI as a trigger
 
 Our previous [Firmware Remora](https://github.com/martinberlin/Remora) was intended to receive short commands from ORCΛ and make very simple Neopixels  animations on addressable LEDs stripes (WS2812B like)
 
-**PLAN A**
+**PLAN A** NODEJS Middleware
 
-To use this for the moment we convert incoming MIDI input to UDP using a **nodejs middleware**. To start it just go to the directory:
+The first implementation that does not need any Midi HAT to convert the signal to midi uses a **nodejs middleware**. To start it just go to the directory:
 
     cd middleware/midi-to-udp
     nodejs midi.js
@@ -22,10 +18,17 @@ There you will see what ports you have as incoming MIDI. You need a midi input s
 
 This will redirect the MIDI notes to UDP. And the ESP32 will receive this UDP short messages and draw things in your LED Matrix.
 
-**PLAN B**
+**PLAN B** MIDI Serial version
 
-On next updates we will also worrk in a module to receive directly the notes in the ESP32. Thhat will require an Sparkfun Midi-Arduino module to enable Midi thru and do the signal to serial conversion. The design to connect the ESP32 is still on the works and it will take some weeks more to see the light.
-If that works as expected, then there is no more middleware needed, and no more WiFi latence delay. So this should be actually the real thing if you want to be independant of WiFi. 
+Requires a Sparkfun Midi-Arduino module to enable Midi thru and do the signal to serial conversion. The wiring to the ESP32, using Serial2 to leave the first one for debugging, is pretty straight-forward:
+
+ESP32 | HAT midi
+5v 5v
+GND GND
+RX 26
+TX 27
+
+This should be actually the real thing, faster and with less latence, if you want to be independant of WiFi.
 
 ![Sparkfun MIDI](./assets/midi-arduino.jpg)
 
@@ -97,3 +100,7 @@ This works super fast thanks of the work of amazing Marc Merlin's fork for [Fast
 
 * [Remora](https://github.com/martinberlin/Remora) just for short Led stripe animations
 * [ORCΛ Sequencer](https://github.com/hundredrabbits/Orca)
+
+### Additional information and links
+
+* [Repurposing the MIDI protocol to control Led Matrixes](https://fasani.de/2020/11/29/repurposing-the-midi-protocol-to-control-led-matrixes) Article in my blog about this project. Check it out if you want to read more details.
