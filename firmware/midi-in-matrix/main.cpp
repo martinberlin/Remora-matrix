@@ -19,6 +19,9 @@ uint8_t midi_note = 0;
 uint8_t midi_velocity = 0;
 uint8_t last_velocity = 127;
 double note_x_factor = (MIDI_TOP_OCTAVE*12)/MATRIX_WIDTH;
+// If the figures are too small just reduce this. If too big, just increase. SIZE / velocity_division
+uint8_t velocity_division = 12;
+
 uint8_t erase_counter=0;
 char parser[8];
 // Stores the message that triggers a shape. NNSVV Note, Status, Velocity
@@ -30,8 +33,7 @@ std::vector<uint8_t> vNote;
 uint8_t note_last_velocity[127];
 // Enabling this converts Note 71 that is electribe's potentiometer into the velocity divisor (Makes smaller/bigger shapes)
 #define POTENCIOMETER_DIVISOR_KORG 0
-// If the figures are too small just reduce this. If too big, just increase. SIZE / velocity_division
-uint8_t velocity_division = 10;
+
 // Message transport protocol
 AsyncUDP udp;
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
@@ -198,13 +200,13 @@ uint16_t colorSampler1(uint8_t velocity) {
 
 bool isSemitone(uint8_t note) {
   bool semitone = false;
-  uint8_t octave = note/12;
-  uint8_t chord = note - (octave*12);
+  uint8_t chord = note%12;
   if ((chord<4 && chord%2!=0) || (chord>5 && chord%2==0)) {
     semitone = true;
   }
   #if defined(DEBUGMODE) && DEBUGMODE==1
-    Serial.printf("Ch:%d N:%d Oct:%d Chord:%d #:%d\n", midi_channel, midi_note, octave, chord, semitone);
+    uint8_t octave = note/12;
+    //Serial.printf("Ch:%d N:%d Oct:%d Chord:%d #:%d\n", midi_channel, midi_note, octave, chord, semitone);
   #endif
   return semitone;
 }
@@ -227,8 +229,16 @@ void shapeTriangle3(uint8_t x, double radius, uint8_t velocity, uint16_t color) 
   matrix->fillTriangle(x, yAxisCenter, x, yAxisCenter+radius, x-radius, yAxisCenter, (color==0)?0:velocity);
   return;
   }
-void shapeLine(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
-  matrix->drawFastHLine(x, yAxisCenter,velocity/velocity_division,color);
+void shapeLineH(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
+  uint8_t semiYOffset = (isSemitone(midi_note)) ? 3 : 0;
+  matrix->drawFastHLine(x, yAxisCenter+semiYOffset,velocity/velocity_division,color);
+  matrix->drawFastHLine(x, yAxisCenter+semiYOffset+1,velocity/velocity_division,color);
+  return;
+  }
+void shapeLineV(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
+  uint8_t semiYOffset = (isSemitone(midi_note)) ? 3 : 0;
+  matrix->drawFastVLine(x, yAxisCenter+semiYOffset,velocity/velocity_division,color);
+  matrix->drawFastVLine(x+1, yAxisCenter+semiYOffset,velocity/velocity_division,color);
   return;
   }
 void shapeRectangle(uint8_t x, double radius, uint8_t velocity, uint16_t color) { 
@@ -238,19 +248,19 @@ void shapeRectangle(uint8_t x, double radius, uint8_t velocity, uint16_t color) 
 
 // Draw Piano keys selector
 void shapePianoKeys(uint8_t x, double radius, uint8_t velocity, uint16_t color) { 
-  uint8_t semiYOffset = (isSemitone(midi_note)) ? 6 : 0;
+  uint8_t semiYOffset = (isSemitone(midi_note)) ? 4 : 0;
   //Serial.printf("Ch:%d N:%d x:%d Vel:%d\n",midi_channel,midi_note,x,velocity);
-  matrix->fillRect(x, yAxisCenter-semiYOffset, radius, velocity/4, (color==0)?0:LED_WHITE_MEDIUM); // LED_WHITE_MEDIUM
+  matrix->fillRect(x, yAxisCenter-semiYOffset, radius, velocity/3, (color==0)?0:LED_WHITE_MEDIUM); // LED_WHITE_MEDIUM
   return;
 }
 void shapePianoKeys2(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
-  uint8_t semiYOffset = (isSemitone(midi_note)) ? 8 : 0;
-  matrix->fillRect(x, yAxisCenter-semiYOffset, radius, velocity/5, (color==0)?0:LED_WHITE_LOW); // LED_WHITE_MEDIUM
+  uint8_t semiYOffset = (isSemitone(midi_note)) ? 3 : 0;
+  matrix->fillRect(x, yAxisCenter-semiYOffset, radius, velocity/3, (color==0)?0:matrix->Color(100,0,100)); // red+blue= violet
   return;
 }
 void shapePianoKeys3(uint8_t x, double radius, uint8_t velocity, uint16_t color) {
-  uint8_t semiYOffset = (isSemitone(midi_note)) ? 10 : 0;
-  matrix->fillRect(x, yAxisCenter-semiYOffset, radius, velocity/5, (color==0)?0:matrix->Color(100,100,0)); // yellow
+  uint8_t semiYOffset = (isSemitone(midi_note)) ? 2 : -2;
+  matrix->fillRect(x, yAxisCenter-semiYOffset, radius, velocity/3, (color==0)?0:matrix->Color(100,100,0)); // yellow
   return;
 }
 
@@ -272,7 +282,7 @@ void shapeSelector(uint8_t note, double shapeSize, uint8_t velocity, uint16_t co
           shapeRectangle(x, shapeSize, velocity, color);
           break;
         case 4:
-          shapePianoKeys2(x, shapeSize, velocity, color);
+          shapePianoKeys(x, shapeSize, velocity, color);
           break;
         case 5:
           shapePianoKeys3(x, shapeSize, velocity, color);
@@ -283,7 +293,14 @@ void shapeSelector(uint8_t note, double shapeSize, uint8_t velocity, uint16_t co
         case 7:
           shapeTriangle3(x, shapeSize, velocity, color);
         case 8:
-          shapeLine(x, shapeSize, velocity, color);
+        case 9:
+        case 10:
+          shapeLineH(x, shapeSize, velocity, color);
+        break;
+        case 11:
+        case 12:
+        case 13:
+          shapeLineV(x, shapeSize, velocity, color);
         break;
         default:
           shapeCircle(x, shapeSize, velocity, color);
@@ -297,68 +314,70 @@ void shapeSelector(uint8_t note, double shapeSize, uint8_t velocity, uint16_t co
  * to trigger different shapes, keeping the same message format
  */
 void messageToShape(char in[6]) {
+  #if defined(MIDI_CLEAN_SCREEN_EVERY) && MIDI_CLEAN_SCREEN_EVERY!=0
   erase_counter++;
-  if (erase_counter%10) {
+  if (erase_counter%MIDI_CLEAN_SCREEN_EVERY) {
     matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
   }
-      if (firstNote) {
-        matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
-        matrix->show();
-        firstNote = false;
+  #endif
+
+  if (firstNote) {
+    matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
+    matrix->show();
+    firstNote = false;
+  }
+
+  // Extract from Serial: NN1VV  Note (2) status (bool) Velocity (2) 
+  char note1 = in[0];
+  char note2 = in[1];
+  char noteArray[2] = {note1,note2};
+  uint8_t note = StrToHex(noteArray);
+
+  uint8_t status = in[2];
+  #if defined(MIDI_FIXED_VELOCITY) && MIDI_FIXED_VELOCITY==0
+    char velocity1 = in[3];
+    char velocity2 = in[4];
+    char velArray[2] = {velocity1,velocity2};
+    uint8_t velocity = StrToHex(velArray);
+  #else    
+    uint8_t velocity = MIDI_FIXED_VELOCITY;
+  #endif
+  
+  if (status != 48) { // status 0: 48 in ASCII table is '0'
+    // Add the note to the vector
+    vNote.push_back(note);
+    // Crude test to use the pan Potentiometer to regulate shape size
+  #if defined(POTENCIOMETER_DIVISOR_KORG) && POTENCIOMETER_DIVISOR_KORG==1
+    if (note==72 && velocity<21) {
+      velocity_division = velocity;
+      printf("divisor:%d\n",velocity_division);
+      matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
+    }
+  #endif
+
+    shapeSize = velocity/velocity_division;
+    if (shapeSize<2) shapeSize=2;
+
+    shapeSelector(note, shapeSize, velocity, colorSampler1(velocity));
+    //Serial.printf("ON :%d Size:%f V:%d\n", note, shapeSize, velocity);
+
+    note_last_velocity[note] = velocity;
+  } else { 
+    // Iterate and delete released notes from Vector
+
+    std::vector<uint8_t>::iterator it = vNote.begin();
+    for ( ; it != vNote.end(); ) {
+      if (*it==note) {
+        it = vNote.erase(it);
+        //Turn this note off drawing same shape in Black
+        //Serial.printf("OFF: %d size %f Vel %d\n", note, shapeSize, note_last_velocity[note]);
+        shapeSelector(note, shapeSize, note_last_velocity[note], matrix->Color(0,0,0));
+      } else {
+        ++it;
       }
-
-      // Extract from Serial 
-      // NN1VV  Note (2) status (bool) Velocity (2) 
-      char note1 = in[0];
-      char note2 = in[1];
-      char noteArray[2] = {note1,note2};
-      uint8_t note = StrToHex(noteArray);
-
-      uint8_t status = in[2];
-      #if defined(MIDI_FIXED_VELOCITY) && MIDI_FIXED_VELOCITY==0
-        char velocity1 = in[3];
-        char velocity2 = in[4];
-        char velArray[2] = {velocity1,velocity2};
-        uint8_t velocity = StrToHex(velArray);
-      #else    
-        uint8_t velocity = MIDI_FIXED_VELOCITY;
-      #endif
-      
-      if (status != 48) { // status 0: 48 in ASCII table is '0'
-        // Add the note to the vector
-        vNote.push_back(note);
-        // Crude test to use the pan Potentiometer to regulate shape size
-      #if defined(POTENCIOMETER_DIVISOR_KORG) && POTENCIOMETER_DIVISOR_KORG==1
-        if (note==72 && velocity<21) {
-          velocity_division = velocity;
-          printf("divisor:%d\n",velocity_division);
-          matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,matrix->Color(0,0,0));
-        }
-      #endif
-
-        shapeSize = velocity/velocity_division;
-        if (shapeSize<2) shapeSize=2;
-
-        shapeSelector(note, shapeSize, velocity, colorSampler1(velocity));
-        //Serial.printf("ON :%d Size:%f V:%d\n", note, shapeSize, velocity);
-
-        note_last_velocity[note] = velocity;
-      } else { 
-        // Iterate and delete released notes from Vector
-
-        std::vector<uint8_t>::iterator it = vNote.begin();
-        for ( ; it != vNote.end(); ) {
-          if (*it==note) {
-            it = vNote.erase(it);
-            //Turn this note off drawing same shape in Black
-            //Serial.printf("OFF: %d size %f Vel %d\n", note, shapeSize, note_last_velocity[note]);
-            shapeSelector(note, shapeSize, note_last_velocity[note], matrix->Color(0,0,0));
-          } else {
-            ++it;
-          }
-        }
-      }
-      matrix->show();
+    }
+  }
+  matrix->show();
 }
 
 void setup() {
@@ -394,9 +413,9 @@ void loop() {
     uint8_t midi_in = Serial2.read();
     
     // Add here midi_in messages that should be ignored
-    //Serial.printf("%d ", midi_in); // uncomment for debug
-    // RealTime messages discarded
-    if (midi_in >= 0xF8) break;
+    // Serial.printf("%d ", midi_in); // uncomment for debug
+    // RealTime messages discarded 0xF8
+    if (midi_in > 176) break;
 
     switch (midi_index) {
         case 0:
@@ -404,7 +423,6 @@ void loop() {
         if (midi_in == 176) {
           midi_control_ignore = true;
         }
-
         // channel is in low order bits and comes in byte 0
         midi_channel = (midi_in & 0x0F) + 1;
           
@@ -417,6 +435,10 @@ void loop() {
             case 1:
                 midi_status = 1;
                 break;
+            default:
+                //printf("C %d ",(midi_in >> 4) & 0x07); // Sometimes comes 3
+                return;
+
                 // Fill with more cases if you want. For this example we are interested only on Note ON/OFF event
                 // There is additional messages like Program change, Pitch wheel, Control change and many more!
                 // More info: https://www.gammon.com.au/forum/?id=12746
@@ -436,9 +458,11 @@ void loop() {
           if (midi_in==1) {
             ESP.restart();
           }
-          matrix->setCursor(2,10);
-          matrix->printf("%d", midi_in);
-          matrix->show();
+          #if defined(MIDI_DRAW_CONTROL_SIGNALS) && MIDI_DRAW_CONTROL_SIGNALS==1
+            matrix->setCursor(2,10);
+            matrix->printf("%d", midi_in);
+            matrix->show();
+          #endif
           midi_control_ignore = false;
           delayMicroseconds(100);
           break;
@@ -460,13 +484,13 @@ void loop() {
         // Listen all or only two channels. Expand this for more:
         if (MIDI_LISTEN_CHANNEL1==0) {
           messageToShape(midi_msg);
-        } else if(MIDI_LISTEN_CHANNEL1==midi_channel || MIDI_LISTEN_CHANNEL2==midi_channel) {
+        } else if(MIDI_LISTEN_CHANNEL1==midi_channel || MIDI_LISTEN_CHANNEL2==midi_channel || MIDI_LISTEN_CHANNEL3==midi_channel) {
           messageToShape(midi_msg);
         }
         delayMicroseconds(10);
         //Serial.printf("Ch%d Note:%d\n M:%s",midi_channel, midi_note,midi_msg);
         #if defined(DEBUGMODE) && DEBUGMODE==1
-         Serial.printf("Ch%d N:%d S:%d V:%d\n", midi_channel, midi_note, midi_status, midi_velocity);
+         Serial.printf("Ch%d N:%d S:%d V:%d M:%s\n", midi_channel, midi_note, midi_status, midi_velocity, midi_msg);
         #endif
         break;
     }
