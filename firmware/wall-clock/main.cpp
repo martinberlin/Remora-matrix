@@ -1,4 +1,3 @@
-#include <SPI.h>
 #include <Wire.h> 
 // Super proud of amazing Marc: https://github.com/marcmerlin All credits for this go to him!
 #include <Adafruit_GFX.h>
@@ -13,15 +12,16 @@ GFXfont Font1 = Ubuntu_M8pt8b;
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
 // Set initial RTC data
-uint8_t hr = 12;
-uint8_t m = 19;
+uint8_t hr = 9;
+uint8_t m = 25;
 int year = 2024;
-int month = 8;
-int day = 31;
+int month = 9;
+int day = 1;
+
 // BitBank RTC magic
 #include <bb_rtc.h>
 BBRTC rtc;
-#define SET_CLOCK false
+
 // Define your Matrix following Adafruit_NeoMatrix Guide: https://learn.adafruit.com/adafruit-neopixel-uberguide/neomatrix-library
 // cLEDMatrix defines 
 cLEDMatrix<-MATRIX_WIDTH, -10, HORIZONTAL_ZIGZAG_MATRIX,
@@ -126,14 +126,16 @@ void setup() {
     LED_GREEN_LOW,LED_BLUE_LOW,LED_BLUE_MEDIUM,LED_BLUE_HIGH,LED_RED_LOW,LED_RED_MEDIUM,LED_RED_HIGH);
     rtc.init(); // initialize the RTC that's found (amongst 3 supported) on the default I2C pins for this target board
 
-#if SET_CLOCK 
-    myTime.tm_hour = hr;
-    myTime.tm_min = m;
-    myTime.tm_year = year;
-    myTime.tm_mon = month;
-    myTime.tm_mday = day;
-    rtc.setTime(&myTime);
-#endif
+    rtc.getTime(&myTime);
+    if (myTime.tm_hour == 0 && myTime.tm_min == 0) {
+      myTime.tm_hour = hr;
+      myTime.tm_min = m;
+      myTime.tm_year = year;
+      myTime.tm_mon = month;
+      myTime.tm_mday = day;
+      rtc.setTime(&myTime);
+      printf("Setting time to %02d:%02d", myTime.tm_hour, myTime.tm_min);
+    }
 
     matrix->begin();
     matrix->setTextWrap(true);
@@ -151,6 +153,7 @@ void loop() {
   char timestr[12];
   rtc.getTime(&myTime); // Read the current time from the RTC into our time structure
   sprintf(timestr, "%02d:%02d", myTime.tm_hour, myTime.tm_min);
+  printf("%s\n", timestr);
   matrix->setCursor(4, 14);
   matrix->setFont(&Font1);
   matrix->print(timestr);
