@@ -18,6 +18,8 @@ int year = 2024;
 int month = 9;
 int day = 1;
 
+// Adds a pixel per second (A bit more high-consumption too)
+#define ADD_SECONDS true
 // BitBank RTC magic
 #include <bb_rtc.h>
 BBRTC rtc;
@@ -148,15 +150,34 @@ void setup() {
     delay(1000);
 }
 
+uint8_t last_min = 0;
+
 void loop() {
-  matrix->clear();
+  
   char timestr[12];
   rtc.getTime(&myTime); // Read the current time from the RTC into our time structure
-  sprintf(timestr, "%02d:%02d", myTime.tm_hour, myTime.tm_min);
-  printf("%s\n", timestr);
-  matrix->setCursor(4, 14);
-  matrix->setFont(&Font1);
-  matrix->print(timestr);
+  if (last_min != myTime.tm_min) {
+    matrix->clear();
+    last_min = myTime.tm_min;
+    sprintf(timestr, "%02d:%02d", myTime.tm_hour, myTime.tm_min);
+    printf("%s\n", timestr);
+    matrix->setCursor(4, 14);
+    matrix->setFont(&Font1);
+    matrix->print(timestr);
+  }
+  #if ADD_SECONDS
+  if (myTime.tm_sec < MATRIX_WIDTH) {
+    matrix->writePixel(myTime.tm_sec, 19, LED_RED_LOW);
+  }
+  if (myTime.tm_sec >= MATRIX_WIDTH) {
+    matrix->writePixel(49, 19- (myTime.tm_sec-50), LED_RED_LOW);
+  }
+  #endif
   matrix->show();
+
+  #if ADD_SECONDS
+  delay(500);
+  #else
   delay(60000);
+  #endif
 }
