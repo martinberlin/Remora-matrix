@@ -8,16 +8,18 @@ GFXfont Font1 = Ubuntu_M8pt8b;
 #include <FastLED.h>
 #include <LEDMatrix.h>
 
+#define SET_INITIAL_TIME 0
 #include "WiFi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
 // Set initial RTC data
-uint8_t hr = 9;
-uint8_t m = 25;
-int year = 2024;
-int month = 9;
-int day = 1;
+uint8_t hr = 8;
+uint8_t m = 15;
+int year = 2025;
+int month = 1;
+int day = 15;
 
+#define LED_BRIGHTNESS 45
 // Adds a pixel per second (A bit more high-consumption too)
 #define ADD_SECONDS true
 // BitBank RTC magic
@@ -42,18 +44,23 @@ FastLED_NeoMatrix *matrix = new FastLED_NeoMatrix(leds, MATRIX_WIDTH, 10,
     NEO_TILE_TOP + NEO_TILE_LEFT +  NEO_TILE_PROGRESSIVE);
     
 
-#define LED_RED_VERYLOW 	(3 <<  11)
+#define LED_RED_VERYLOW 	(5 <<  11)
 #define LED_RED_LOW 		(7 <<  11)
 #define LED_RED_MEDIUM 		(15 << 11)
 #define LED_RED_HIGH 		(31 << 11)
-#define LED_GREEN_VERYLOW	(1 <<  5)   
+
+#define LED_GREEN_VERYLOW	(7 <<  5)   
 #define LED_GREEN_LOW 		(15 << 5)  
 #define LED_GREEN_MEDIUM 	(31 << 5)  
 #define LED_GREEN_HIGH 		(63 << 5)  
+
 #define LED_BLUE_VERYLOW	3
 #define LED_BLUE_LOW 	    7
 #define LED_BLUE_MEDIUM 	15
 #define LED_BLUE_HIGH 		31
+
+#define LED_YELLOW_LOW (LED_RED_LOW+LED_GREEN_LOW)
+#define LED_YELLOW_VERYLOW (LED_RED_VERYLOW+LED_GREEN_VERYLOW)
 
 #define LED_ORANGE_VERYLOW	(LED_RED_VERYLOW + LED_GREEN_VERYLOW)
 #define LED_ORANGE_LOW		(LED_RED_LOW     + LED_GREEN_LOW)
@@ -75,6 +82,7 @@ FastLED_NeoMatrix *matrix = new FastLED_NeoMatrix(leds, MATRIX_WIDTH, 10,
 #define LED_WHITE_MEDIUM	(LED_RED_MEDIUM  + LED_GREEN_MEDIUM  + LED_BLUE_MEDIUM)
 #define LED_WHITE_HIGH		(LED_RED_HIGH    + LED_GREEN_HIGH    + LED_BLUE_HIGH)
 
+int text_color = LED_WHITE_LOW;
 uint16_t rndColor(uint8_t randomColor) {
   uint16_t color = LED_RED_LOW;
 switch (randomColor)
@@ -129,7 +137,7 @@ void setup() {
     rtc.init(); // initialize the RTC that's found (amongst 3 supported) on the default I2C pins for this target board
 
     rtc.getTime(&myTime);
-    if (myTime.tm_hour == 0 && myTime.tm_min == 0) {
+    if (SET_INITIAL_TIME) {
       myTime.tm_hour = hr;
       myTime.tm_min = m;
       myTime.tm_year = year;
@@ -141,7 +149,7 @@ void setup() {
 
     matrix->begin();
     matrix->setTextWrap(true);
-    matrix->setBrightness(MATRIX_BRIGHTNESS);
+    matrix->setBrightness(LED_BRIGHTNESS);
     matrix->setTextColor(LED_WHITE_LOW);
     matrix->setCursor(4, 10);
     matrix->setFont(&Font1);
@@ -150,7 +158,8 @@ void setup() {
     delay(1000);
 }
 
-uint8_t last_min = 0;
+int last_min = 0;
+int last_sec = -1;
 
 void loop() {
   
@@ -158,6 +167,14 @@ void loop() {
   rtc.getTime(&myTime); // Read the current time from the RTC into our time structure
   if (last_min != myTime.tm_min) {
     matrix->clear();
+    if (myTime.tm_min == 0) {
+      text_color = LED_RED_MEDIUM;
+      matrix->fillRect(0,0,MATRIX_WIDTH,MATRIX_HEIGHT,LED_WHITE_MEDIUM);
+    } 
+    
+    if (myTime.tm_min == 1) {
+      text_color = LED_WHITE_LOW;
+    }
     last_min = myTime.tm_min;
     sprintf(timestr, "%02d:%02d", myTime.tm_hour, myTime.tm_min);
     printf("%s\n", timestr);
@@ -166,17 +183,21 @@ void loop() {
     matrix->print(timestr);
   }
   #if ADD_SECONDS
-  if (myTime.tm_sec < MATRIX_WIDTH) {
-    matrix->writePixel(myTime.tm_sec, 19, LED_RED_LOW);
-  }
-  if (myTime.tm_sec >= MATRIX_WIDTH) {
-    matrix->writePixel(49, 19- (myTime.tm_sec-50), LED_RED_LOW);
+  if (last_sec != myTime.tm_sec && myTime.tm_sec % 2 == 0) {
+    last_sec = myTime.tm_sec;
+    if (myTime.tm_sec < MATRIX_WIDTH) {
+      matrix->writePixel(myTime.tm_sec, 19, LED_YELLOW_VERYLOW);
+    }
+    if (myTime.tm_sec >= MATRIX_WIDTH) {
+      matrix->writePixel(49, 19- (myTime.tm_sec-49), LED_YELLOW_VERYLOW);
+    }
   }
   #endif
   matrix->show();
 
+  // This should be better in sync if you get the signal from RTC as INPUT in ESP32
   #if ADD_SECONDS
-  delay(500);
+  delay(250);
   #else
   delay(60000);
   #endif
